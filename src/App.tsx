@@ -21,7 +21,9 @@ import {
   ChevronRight,
   Bell,
   ShoppingBag,
-  Utensils
+  Utensils,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -39,9 +41,9 @@ import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense } from './types';
 
 // --- Types ---
-type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings';
+type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report' | 'reminders';
 
-const CAIXINHA_CATEGORIES = ['rent', 'car', 'insurance'];
+const CAIXINHA_CATEGORIES = ['rent', 'car', 'insurance', 'maintenance'];
 
 // --- Utils ---
 const generateId = () => {
@@ -486,6 +488,14 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
     setAmount('');
   };
 
+  const confirmDaily = (goal: any) => {
+    onDeposit({
+      billId: goal.id,
+      amount: Number(goal.dailyNeeded.toFixed(2)),
+      date: format(new Date(), 'yyyy-MM-dd')
+    });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -497,6 +507,9 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
           
           {goals.map(goal => {
             const progress = (goal.totalSaved / goal.value) * 100;
+            const remainingPercent = 100 - progress;
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            const alreadyDepositedToday = deposits.some(d => d.billId === goal.id && d.date === todayStr);
             
             return (
               <Card key={goal.id} className="p-6">
@@ -507,31 +520,73 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-medium text-slate-500 uppercase">Guardar hoje:</p>
-                    <p className="text-lg font-bold text-amber-600">R$ {formatCurrency(goal.dailyNeeded, { minimumFractionDigits: 2 })}</p>
+                    <p className={cn(
+                      "text-lg font-bold",
+                      alreadyDepositedToday ? "text-emerald-600" : "text-amber-600"
+                    )}>
+                      {alreadyDepositedToday ? "Concluído" : `R$ ${formatCurrency(goal.dailyNeeded, { minimumFractionDigits: 2 })}`}
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs font-medium">
-                    <span className="text-slate-500">Progresso: {progress.toFixed(1)}%</span>
-                    <span className="text-slate-900">R$ {formatCurrency(goal.totalSaved)} / R$ {formatCurrency(goal.value)}</span>
+                <div className="space-y-6">
+                  {/* Ruler Progress Bar */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-emerald-600">Progresso: {progress.toFixed(1)}%</span>
+                      <span className="text-red-500">Falta: {remainingPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="relative h-6 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                      <div 
+                        className="absolute top-0 left-0 h-full bg-emerald-500 transition-all duration-1000" 
+                        style={{ width: `${Math.min(100, progress)}%` }}
+                      />
+                      {/* Ruler Ticks */}
+                      <div className="absolute top-0 left-0 w-full h-full flex justify-between px-1 pointer-events-none">
+                        {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(tick => (
+                          <div key={tick} className="h-full flex flex-col items-center justify-end pb-0.5">
+                            <div className={cn(
+                              "w-px bg-slate-400/30",
+                              tick % 50 === 0 ? "h-3" : tick % 10 === 0 ? "h-2" : "h-1"
+                            )} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-[9px] text-slate-400 font-mono px-0.5">
+                      <span>0%</span>
+                      <span>50%</span>
+                      <span>100%</span>
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-amber-500 h-full transition-all duration-1000" 
-                      style={{ width: `${Math.min(100, progress)}%` }}
-                    />
-                  </div>
-                </div>
 
-                <div className="mt-4 flex items-center gap-4 text-xs text-slate-500">
-                  <div className="flex items-center gap-1">
-                    <CalendarIcon className="w-3 h-3" />
-                    {goal.daysLeft} dias restantes
+                  <div className="grid grid-cols-2 gap-4 py-4 bg-slate-50/50 rounded-xl px-4 border border-slate-100">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Já Depositado</p>
+                      <p className="text-xl font-bold text-emerald-600">R$ {formatCurrency(goal.totalSaved)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Ainda Falta</p>
+                      <p className="text-xl font-bold text-red-500">R$ {formatCurrency(goal.remaining)}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    Faltam R$ {formatCurrency(goal.remaining)}
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 text-xs text-slate-500">
+                      <div className="flex items-center gap-1">
+                        <CalendarIcon className="w-3 h-3" />
+                        {goal.daysLeft} dias restantes
+                      </div>
+                    </div>
+                    
+                    {!alreadyDepositedToday && goal.remaining > 0 && (
+                      <Button 
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 text-xs"
+                        onClick={() => confirmDaily(goal)}
+                      >
+                        Confirmar Depósito de Hoje
+                      </Button>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -716,6 +771,184 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
           </table>
         </div>
       </Card>
+    </div>
+  );
+};
+
+const ReportView = ({ earnings, expenses, bills }: {
+  earnings: EarningsEntry[];
+  expenses: DailyExpense[];
+  bills: Bill[];
+}) => {
+  const totalEarnings = earnings.reduce((acc, curr) => acc + curr.totalEarnings, 0);
+  const totalCosts = earnings.reduce((acc, curr) => acc + curr.costs, 0);
+  const totalExpenses = expenses.reduce((acc, curr) => acc + curr.value, 0);
+  const totalBills = bills.reduce((acc, curr) => acc + curr.value, 0);
+  const paidBills = bills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-slate-900">Relatório Detalhado</h3>
+        <Button variant="secondary" onClick={() => window.print()} className="hidden md:flex gap-2 px-3 py-1 text-xs">
+          <FileText className="w-4 h-4" /> Imprimir Relatório
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-4 border-l-4 border-l-emerald-500">
+          <p className="text-xs font-bold text-slate-400 uppercase">Ganhos Brutos</p>
+          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalEarnings)}</p>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-amber-500">
+          <p className="text-xs font-bold text-slate-400 uppercase">Custos Operacionais</p>
+          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalCosts)}</p>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-red-500">
+          <p className="text-xs font-bold text-slate-400 uppercase">Gastos Diários</p>
+          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalExpenses)}</p>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-slate-900">
+          <p className="text-xs font-bold text-slate-400 uppercase">Total de Contas</p>
+          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalBills)}</p>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h4 className="font-bold mb-4 flex items-center gap-2">
+            <Car className="w-5 h-5 text-slate-400" /> Detalhes de Aplicativos
+          </h4>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+              <span className="text-sm font-medium">Uber</span>
+              <span className="font-bold">R$ {formatCurrency(earnings.reduce((acc, curr) => acc + curr.uberEarnings, 0))}</span>
+            </div>
+            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+              <span className="text-sm font-medium">99 Pop</span>
+              <span className="font-bold">R$ {formatCurrency(earnings.reduce((acc, curr) => acc + curr.pop99Earnings, 0))}</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h4 className="font-bold mb-4 flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-slate-400" /> Resumo de Contas
+          </h4>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+              <span className="text-sm font-medium text-emerald-600">Pagas</span>
+              <span className="font-bold text-emerald-600">R$ {formatCurrency(paidBills)}</span>
+            </div>
+            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+              <span className="text-sm font-medium text-amber-600">Pendentes</span>
+              <span className="font-bold text-amber-600">R$ {formatCurrency(totalBills - paidBills)}</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const RemindersView = ({ bills, onAdd, onDelete }: {
+  bills: Bill[];
+  onAdd: (bill: Omit<Bill, 'id' | 'isPaid'>) => void;
+  onDelete: (id: string) => void;
+}) => {
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    value: '', 
+    dueDate: format(new Date(), 'yyyy-MM-dd'),
+    category: 'maintenance' as Bill['category']
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.value) return;
+    onAdd({
+      name: formData.name,
+      value: Number(formData.value),
+      dueDate: formData.dueDate,
+      category: formData.category,
+      isRecurring: true
+    });
+    setFormData({ 
+      name: '', 
+      value: '', 
+      dueDate: format(new Date(), 'yyyy-MM-dd'),
+      category: 'maintenance'
+    });
+  };
+
+  const reminders = bills.filter(b => ['maintenance', 'fuel', 'insurance'].includes(b.category));
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card className="p-6">
+        <h3 className="text-lg font-bold mb-4">Novo Lembrete de Manutenção / Veículo</h3>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <Input 
+            label="O que lembrar?" 
+            placeholder="Ex: Troca de Óleo, Seguro..."
+            value={formData.name} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })} 
+          />
+          <Input 
+            label="Valor Estimado (R$)" 
+            type="number" 
+            placeholder="0,00"
+            value={formData.value} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, value: e.target.value })} 
+          />
+          <Input 
+            label="Data Prevista" 
+            type="date" 
+            value={formData.dueDate} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })} 
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-slate-700">Categoria</label>
+            <select 
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value as Bill['category'] })}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
+            >
+              <option value="maintenance">Manutenção</option>
+              <option value="fuel">Combustível</option>
+              <option value="insurance">Seguro</option>
+            </select>
+          </div>
+          <Button type="submit" className="w-full lg:col-span-4">
+            <Plus className="w-4 h-4" /> Adicionar Lembrete
+          </Button>
+        </form>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {reminders.map(rem => (
+          <Card key={rem.id} className="p-5 border-l-4 border-l-amber-500">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <h4 className="font-bold text-slate-900">{rem.name}</h4>
+                <p className="text-xs text-slate-500">Previsto para {safeFormat(rem.dueDate, 'dd/MM/yyyy')}</p>
+              </div>
+              <button 
+                onClick={() => onDelete(rem.id)}
+                className="text-slate-400 hover:text-red-500 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-lg font-bold text-slate-900">R$ {formatCurrency(rem.value)}</span>
+              <span className="text-[10px] font-bold uppercase px-2 py-1 bg-amber-50 text-amber-600 rounded">
+                {rem.category === 'maintenance' ? 'Manutenção' : rem.category === 'fuel' ? 'Combustível' : 'Seguro'}
+              </span>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
@@ -937,35 +1170,17 @@ export default function App() {
     }
   }, [bills, deposits]);
 
-  // Auto-deposit daily goal
-  useEffect(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const newDeposits: SavingsDeposit[] = [];
-    
-    savingsGoals.forEach(goal => {
-      const alreadyDepositedToday = deposits.some(d => d.billId === goal.id && d.date === todayStr);
-      
-      if (!alreadyDepositedToday && goal.dailyNeeded > 0 && goal.remaining > 0) {
-        newDeposits.push({
-          id: generateId(),
-          billId: goal.id,
-          amount: Number(goal.dailyNeeded.toFixed(2)),
-          date: todayStr
-        });
-      }
-    });
-
-    if (newDeposits.length > 0) {
-      setDeposits(prev => [...prev, ...newDeposits]);
-    }
-  }, [savingsGoals, deposits]);
-
+  // Auto-deposit daily goal removed as per user request for manual confirmation
+  
   // --- Renderers ---
 
   const renderDashboard = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 bg-slate-900 text-white border-none">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card 
+          className="p-6 bg-slate-900 text-white border-none cursor-pointer hover:bg-slate-800 transition-colors"
+          onClick={() => setActiveTab('earnings')}
+        >
           <div className="flex justify-between items-start mb-4">
             <div className="p-2 bg-white/10 rounded-lg">
               <TrendingUp className="w-5 h-5 text-emerald-400" />
@@ -976,7 +1191,10 @@ export default function App() {
           <p className="text-sm text-white/60 mt-2">Líquido: R$ {formatCurrency(monthlyStats.netEarnings)}</p>
         </Card>
 
-        <Card className="p-6">
+        <Card 
+          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
+          onClick={() => setActiveTab('expenses')}
+        >
           <div className="flex justify-between items-start mb-4">
             <div className="p-2 bg-red-50 rounded-lg">
               <TrendingDown className="w-5 h-5 text-red-500" />
@@ -987,7 +1205,10 @@ export default function App() {
           <p className="text-sm text-slate-500 mt-2">Lanches, Delivery, etc</p>
         </Card>
 
-        <Card className="p-6">
+        <Card 
+          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
+          onClick={() => setActiveTab('bills')}
+        >
           <div className="flex justify-between items-start mb-4">
             <div className="p-2 bg-slate-100 rounded-lg">
               <Receipt className="w-5 h-5 text-slate-500" />
@@ -1004,7 +1225,10 @@ export default function App() {
           <p className="text-xs text-slate-500 mt-2">Pagas: R$ {formatCurrency(monthlyStats.paidBills)}</p>
         </Card>
 
-        <Card className="p-6">
+        <Card 
+          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
+          onClick={() => setActiveTab('savings')}
+        >
           <div className="flex justify-between items-start mb-4">
             <div className="p-2 bg-amber-50 rounded-lg">
               <PiggyBank className="w-5 h-5 text-amber-500" />
@@ -1139,6 +1363,8 @@ export default function App() {
             { id: 'expenses', icon: ShoppingBag, label: 'Gastos' },
             { id: 'bills', icon: Receipt, label: 'Contas' },
             { id: 'savings', icon: PiggyBank, label: 'Caixinha' },
+            { id: 'reminders', icon: Bell, label: 'Lembretes' },
+            { id: 'report', icon: FileText, label: 'Relatório' },
           ] as const).map(item => (
             <button
               key={item.id}
@@ -1245,6 +1471,20 @@ export default function App() {
                 return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
               })} 
               onDeposit={addDeposit} 
+            />
+          )}
+          {activeTab === 'reminders' && (
+            <RemindersView 
+              bills={bills} 
+              onAdd={addBill} 
+              onDelete={deleteBill} 
+            />
+          )}
+          {activeTab === 'report' && (
+            <ReportView 
+              earnings={earningsEntries} 
+              expenses={dailyExpenses} 
+              bills={bills} 
             />
           )}
         </ErrorBoundary>

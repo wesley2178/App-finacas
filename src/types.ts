@@ -14,7 +14,7 @@ export interface Bill {
   dueDate: string;
   isRecurring: boolean;
   isPaid: boolean;
-  category: 'rent' | 'car' | 'insurance' | 'other';
+  category: 'rent' | 'car' | 'insurance' | 'maintenance' | 'fuel' | 'other';
 }
 
 export interface SavingsDeposit {
