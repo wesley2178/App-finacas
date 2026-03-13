@@ -33,17 +33,23 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie
+  Cell
 } from 'recharts';
 import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense } from './types';
 
+// --- Types ---
+type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings';
+
+const CAIXINHA_CATEGORIES = ['rent', 'car', 'insurance'];
+
 // --- Utils ---
 const generateId = () => {
   try {
-    return crypto.randomUUID();
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   } catch (e) {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   }
@@ -245,28 +251,28 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
               label="Data" 
               type="date" 
               value={formData.date} 
-              onChange={(e: any) => setFormData({ ...formData, date: e.target.value })} 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, date: e.target.value })} 
             />
             <Input 
               label="Ganhos Uber (R$)" 
               type="number" 
               placeholder="0,00"
               value={formData.uberEarnings} 
-              onChange={(e: any) => setFormData({ ...formData, uberEarnings: e.target.value })} 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, uberEarnings: e.target.value })} 
             />
             <Input 
               label="Ganhos 99 (R$)" 
               type="number" 
               placeholder="0,00"
               value={formData.pop99Earnings} 
-              onChange={(e: any) => setFormData({ ...formData, pop99Earnings: e.target.value })} 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, pop99Earnings: e.target.value })} 
             />
             <Input 
               label="Custos (Combustível, etc)" 
               type="number" 
               placeholder="0,00"
               value={formData.costs} 
-              onChange={(e: any) => setFormData({ ...formData, costs: e.target.value })} 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, costs: e.target.value })} 
             />
           </div>
 
@@ -377,26 +383,26 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
             label="Nome da Conta" 
             placeholder="Ex: Aluguel"
             value={formData.name} 
-            onChange={(e: any) => setFormData({ ...formData, name: e.target.value })} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })} 
           />
           <Input 
             label="Valor (R$)" 
             type="number" 
             placeholder="0,00"
             value={formData.value} 
-            onChange={(e: any) => setFormData({ ...formData, value: e.target.value })} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, value: e.target.value })} 
           />
           <Input 
             label="Vencimento" 
             type="date" 
             value={formData.dueDate} 
-            onChange={(e: any) => setFormData({ ...formData, dueDate: e.target.value })} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })} 
           />
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700">Categoria</label>
             <select 
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value as Bill['category'] })}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
             >
               <option value="rent">Aluguel</option>
@@ -562,7 +568,7 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
                 type="number" 
                 placeholder="0,00"
                 value={amount}
-                onChange={(e: any) => setAmount(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
               />
               <Button type="submit" className="w-full">
                 Confirmar Depósito
@@ -632,20 +638,20 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
             label="Descrição" 
             placeholder="Ex: Lanche, Almoço..."
             value={formData.description} 
-            onChange={(e: any) => setFormData({ ...formData, description: e.target.value })} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, description: e.target.value })} 
           />
           <Input 
             label="Valor (R$)" 
             type="number" 
             placeholder="0,00"
             value={formData.value} 
-            onChange={(e: any) => setFormData({ ...formData, value: e.target.value })} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, value: e.target.value })} 
           />
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700">Categoria</label>
             <select 
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value as DailyExpense['category'] })}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
             >
               <option value="food">Comida</option>
@@ -717,7 +723,7 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
 // --- Main App ---
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'earnings' | 'bills' | 'savings' | 'expenses'>('dashboard');
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showAllData, setShowAllData] = useState(false);
   
   // State Persistence
@@ -804,11 +810,14 @@ export default function App() {
 
   const toggleBillPaid = (id: string) => {
     setBills(prev => {
-      const updated = prev.map(b => b.id === id ? { ...b, isPaid: !b.isPaid } : b);
       const bill = prev.find(b => b.id === id);
+      if (!bill) return prev;
+
+      const isMarkingAsPaid = !bill.isPaid;
+      const updated = prev.map(b => b.id === id ? { ...b, isPaid: !b.isPaid } : b);
       
-      // Recurrence logic: if marking as paid and is recurring, create next month's bill
-      if (bill && !bill.isPaid && bill.isRecurring) {
+      // Recurrence logic: if marking as paid AND (is recurring OR is a caixinha category)
+      if (isMarkingAsPaid && (bill.isRecurring || CAIXINHA_CATEGORIES.includes(bill.category))) {
         const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
         const alreadyExists = prev.some(b => b.name === bill.name && b.dueDate === nextDueDate);
         
@@ -817,7 +826,8 @@ export default function App() {
             ...bill,
             id: generateId(),
             dueDate: nextDueDate,
-            isPaid: false
+            isPaid: false,
+            isRecurring: true // Ensure it continues to recur
           }];
         }
       }
@@ -900,7 +910,7 @@ export default function App() {
   const savingsGoals = useMemo(() => {
     try {
       return bills
-        .filter(b => ['rent', 'car', 'insurance'].includes(b.category))
+        .filter(b => !b.isPaid && CAIXINHA_CATEGORIES.includes(b.category))
         .map(bill => {
           const today = new Date();
           const dueDate = safeParseISO(bill.dueDate);
@@ -926,6 +936,29 @@ export default function App() {
       return [];
     }
   }, [bills, deposits]);
+
+  // Auto-deposit daily goal
+  useEffect(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const newDeposits: SavingsDeposit[] = [];
+    
+    savingsGoals.forEach(goal => {
+      const alreadyDepositedToday = deposits.some(d => d.billId === goal.id && d.date === todayStr);
+      
+      if (!alreadyDepositedToday && goal.dailyNeeded > 0 && goal.remaining > 0) {
+        newDeposits.push({
+          id: generateId(),
+          billId: goal.id,
+          amount: Number(goal.dailyNeeded.toFixed(2)),
+          date: todayStr
+        });
+      }
+    });
+
+    if (newDeposits.length > 0) {
+      setDeposits(prev => [...prev, ...newDeposits]);
+    }
+  }, [savingsGoals, deposits]);
 
   // --- Renderers ---
 
@@ -992,38 +1025,45 @@ export default function App() {
             Desempenho (Últimos 7 dias)
           </h4>
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={earningsEntries
-                .filter(e => {
-                  if (typeof e.date !== 'string') return false;
-                  const d = safeParseISO(e.date);
-                  const now = new Date();
-                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                })
-                .slice(0, 7)
-                .reverse()
-              }>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="date" 
-                  tickFormatter={(val) => safeFormat(val, 'dd/MM')}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                />
-                <YAxis 
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Bar dataKey="totalEarnings" fill="#0f172a" radius={[4, 4, 0, 0]} name="Ganhos" />
-                <Bar dataKey="costs" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Custos" />
-              </BarChart>
-            </ResponsiveContainer>
+            {earningsEntries.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={earningsEntries
+                  .filter(e => {
+                    if (typeof e.date !== 'string') return false;
+                    const d = safeParseISO(e.date);
+                    const now = new Date();
+                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                  })
+                  .slice(0, 7)
+                  .reverse()
+                }>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="date" 
+                    tickFormatter={(val) => safeFormat(val, 'dd/MM')}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <YAxis 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Bar dataKey="totalEarnings" fill="#0f172a" radius={[4, 4, 0, 0]} name="Ganhos" />
+                  <Bar dataKey="costs" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Custos" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+                <Car className="w-8 h-8 opacity-20" />
+                <p className="text-sm">Nenhum dado para exibir no gráfico</p>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -1093,16 +1133,16 @@ export default function App() {
         </div>
 
         <div className="flex justify-around md:flex-col md:gap-2">
-          {[
+          {( [
             { id: 'dashboard', icon: LayoutDashboard, label: 'Início' },
             { id: 'earnings', icon: Car, label: 'Ganhos' },
             { id: 'expenses', icon: ShoppingBag, label: 'Gastos' },
             { id: 'bills', icon: Receipt, label: 'Contas' },
             { id: 'savings', icon: PiggyBank, label: 'Caixinha' },
-          ].map(item => (
+          ] as const).map(item => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id as any)}
+              onClick={() => setActiveTab(item.id)}
               className={cn(
                 "flex flex-col md:flex-row items-center gap-1 md:gap-3 px-4 py-2 rounded-xl transition-all",
                 activeTab === item.id 
