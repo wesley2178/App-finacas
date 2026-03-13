@@ -40,6 +40,14 @@ import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense } from './types';
 
 // --- Utils ---
+const generateId = () => {
+  try {
+    return crypto.randomUUID();
+  } catch (e) {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  }
+};
+
 const formatCurrency = (value: number | undefined | null, options?: Intl.NumberFormatOptions) => {
   return (value || 0).toLocaleString('pt-BR', options);
 };
@@ -635,14 +643,15 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'earnings' | 'bills' | 'savings' | 'expenses'>('dashboard');
+  const [showAllData, setShowAllData] = useState(false);
   
   // State Persistence
   const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>(() => {
-    const saved = localStorage.getItem('uber_entries'); // Keep same key for migration
+    const saved = localStorage.getItem('uber_entries');
     if (!saved) return [];
     try {
       const parsed = JSON.parse(saved);
-      // Migration: ensure all entries have the new fields and handle old format
+      if (!Array.isArray(parsed)) return [];
       return parsed.map((entry: any) => ({
         ...entry,
         uberEarnings: entry.uberEarnings ?? entry.earnings ?? 0,
@@ -657,17 +666,35 @@ export default function App() {
 
   const [bills, setBills] = useState<Bill[]>(() => {
     const saved = localStorage.getItem('bills');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   const [deposits, setDeposits] = useState<SavingsDeposit[]>(() => {
     const saved = localStorage.getItem('deposits');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>(() => {
     const saved = localStorage.getItem('daily_expenses');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   useEffect(() => {
@@ -689,7 +716,7 @@ export default function App() {
   // --- Handlers ---
 
   const addEarningsEntry = (entry: Omit<EarningsEntry, 'id'>) => {
-    setEarningsEntries(prev => [{ ...entry, id: crypto.randomUUID() }, ...prev]);
+    setEarningsEntries(prev => [{ ...entry, id: generateId() }, ...prev]);
   };
 
   const deleteEarningsEntry = (id: string) => {
@@ -697,7 +724,7 @@ export default function App() {
   };
 
   const addBill = (bill: Omit<Bill, 'id' | 'isPaid'>) => {
-    setBills(prev => [...prev, { ...bill, id: crypto.randomUUID(), isPaid: false }]);
+    setBills(prev => [...prev, { ...bill, id: generateId(), isPaid: false }]);
   };
 
   const toggleBillPaid = (id: string) => {
@@ -713,7 +740,7 @@ export default function App() {
         if (!alreadyExists) {
           return [...updated, {
             ...bill,
-            id: crypto.randomUUID(),
+            id: generateId(),
             dueDate: nextDueDate,
             isPaid: false
           }];
@@ -730,11 +757,11 @@ export default function App() {
   };
 
   const addDeposit = (deposit: Omit<SavingsDeposit, 'id'>) => {
-    setDeposits(prev => [...prev, { ...deposit, id: crypto.randomUUID() }]);
+    setDeposits(prev => [...prev, { ...deposit, id: generateId() }]);
   };
 
   const addDailyExpense = (expense: Omit<DailyExpense, 'id'>) => {
-    setDailyExpenses(prev => [{ ...expense, id: crypto.randomUUID() }, ...prev]);
+    setDailyExpenses(prev => [{ ...expense, id: generateId() }, ...prev]);
   };
 
   const deleteDailyExpense = (id: string) => {
@@ -747,6 +774,7 @@ export default function App() {
     const now = new Date();
     
     const monthEarnings = earningsEntries.filter(e => {
+      if (typeof e.date !== 'string') return false;
       const d = parseISO(e.date);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
@@ -756,6 +784,7 @@ export default function App() {
     const netEarnings = totalEarnings - totalCosts;
 
     const monthBills = bills.filter(b => {
+      if (typeof b.dueDate !== 'string') return false;
       const d = parseISO(b.dueDate);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
@@ -764,6 +793,7 @@ export default function App() {
     const paidBills = monthBills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
 
     const totalDailyExpenses = dailyExpenses.filter(e => {
+      if (typeof e.date !== 'string') return false;
       const d = parseISO(e.date);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).reduce((acc, curr) => acc + curr.value, 0);
@@ -872,6 +902,7 @@ export default function App() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={earningsEntries
                 .filter(e => {
+                  if (typeof e.date !== 'string') return false;
                   const d = parseISO(e.date);
                   const now = new Date();
                   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -911,6 +942,7 @@ export default function App() {
           <div className="space-y-4">
             {bills
               .filter(b => {
+                if (typeof b.dueDate !== 'string') return false;
                 const d = parseISO(b.dueDate);
                 const now = new Date();
                 return !b.isPaid && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -994,22 +1026,35 @@ export default function App() {
 
       {/* Main Content */}
       <main className="pb-24 pt-6 px-4 md:pl-72 md:pr-8 md:pt-8 max-w-7xl mx-auto">
-        <header className="mb-8 flex justify-between items-end">
+        <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
             <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-1">
               {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
             </p>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-              {activeTab === 'dashboard' && "Olá, Wesley!"}
-              {activeTab === 'earnings' && "Ganhos do Dia"}
-              {activeTab === 'expenses' && "Gastos do Dia"}
-              {activeTab === 'bills' && "Suas Contas"}
-              {activeTab === 'savings' && "Minhas Caixinhas"}
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                {activeTab === 'dashboard' && "Olá, Wesley!"}
+                {activeTab === 'earnings' && "Ganhos do Dia"}
+                {activeTab === 'expenses' && "Gastos do Dia"}
+                {activeTab === 'bills' && "Suas Contas"}
+                {activeTab === 'savings' && "Minhas Caixinhas"}
+              </h2>
+              <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                {showAllData ? "Histórico Completo" : "Mês Atual"}
+              </span>
+            </div>
           </div>
-          <div className="hidden md:flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
-              <span className="font-bold text-slate-600">W</span>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowAllData(!showAllData)}
+              className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm"
+            >
+              {showAllData ? "Filtrar por Mês" : "Ver Tudo"}
+            </button>
+            <div className="hidden md:flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+                <span className="font-bold text-slate-600">W</span>
+              </div>
             </div>
           </div>
         </header>
@@ -1018,6 +1063,8 @@ export default function App() {
         {activeTab === 'earnings' && (
           <EarningsView 
             entries={earningsEntries.filter(e => {
+              if (showAllData) return true;
+              if (typeof e.date !== 'string') return false;
               const d = parseISO(e.date);
               const now = new Date();
               return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -1029,6 +1076,8 @@ export default function App() {
         {activeTab === 'expenses' && (
           <ExpensesView 
             expenses={dailyExpenses.filter(e => {
+              if (showAllData) return true;
+              if (typeof e.date !== 'string') return false;
               const d = parseISO(e.date);
               const now = new Date();
               return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -1040,6 +1089,8 @@ export default function App() {
         {activeTab === 'bills' && (
           <BillsView 
             bills={bills.filter(b => {
+              if (showAllData) return true;
+              if (typeof b.dueDate !== 'string') return false;
               const d = parseISO(b.dueDate);
               const now = new Date();
               return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -1053,6 +1104,8 @@ export default function App() {
           <SavingsView 
             goals={savingsGoals} 
             deposits={deposits.filter(d => {
+              if (showAllData) return true;
+              if (typeof d.date !== 'string') return false;
               const date = parseISO(d.date);
               const now = new Date();
               return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
