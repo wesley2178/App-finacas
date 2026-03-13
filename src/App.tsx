@@ -1291,7 +1291,10 @@ export default function App() {
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card 
+          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
+          onClick={() => setActiveTab('bills')}
+        >
           <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
             <Bell className="w-5 h-5 text-slate-400" />
             Próximos Vencimentos
@@ -1348,15 +1351,15 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* Sidebar / Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 md:top-0 md:bottom-auto md:flex-col md:w-64 md:h-screen md:border-r md:border-t-0 z-50">
-        <div className="hidden md:flex items-center gap-3 mb-12 px-2">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 md:top-0 md:bottom-auto md:flex-col md:w-64 md:h-screen md:border-r md:border-t-0 z-50">
+        <div className="hidden md:flex items-center gap-3 mb-12 px-6 py-8">
           <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
             <Car className="text-white w-6 h-6" />
           </div>
           <h1 className="text-xl font-black tracking-tighter italic">UBER<span className="text-slate-400">FINANÇAS</span></h1>
         </div>
 
-        <div className="flex justify-around md:flex-col md:gap-2">
+        <div className="flex overflow-x-auto no-scrollbar px-4 py-2 md:px-2 md:py-0 md:flex-col md:gap-2">
           {( [
             { id: 'dashboard', icon: LayoutDashboard, label: 'Início' },
             { id: 'earnings', icon: Car, label: 'Ganhos' },
@@ -1370,21 +1373,21 @@ export default function App() {
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={cn(
-                "flex flex-col md:flex-row items-center gap-1 md:gap-3 px-4 py-2 rounded-xl transition-all",
+                "flex flex-col md:flex-row items-center gap-1 md:gap-3 px-4 py-2 rounded-xl transition-all flex-shrink-0",
                 activeTab === item.id 
                   ? "text-slate-900 md:bg-slate-100 font-bold" 
                   : "text-slate-400 hover:text-slate-600 md:hover:bg-slate-50"
               )}
             >
-              <item.icon className={cn("w-6 h-6 md:w-5 md:h-5", activeTab === item.id ? "text-slate-900" : "text-slate-400")} />
-              <span className="text-[10px] md:text-sm font-medium">{item.label}</span>
+              <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-slate-900" : "text-slate-400")} />
+              <span className="text-[10px] md:text-sm font-medium whitespace-nowrap">{item.label}</span>
             </button>
           ))}
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="pb-24 pt-6 px-4 md:pl-72 md:pr-8 md:pt-8 max-w-7xl mx-auto">
+      <main className="pb-28 pt-4 px-4 md:pl-72 md:pr-8 md:pt-8 max-w-7xl mx-auto">
         <ErrorBoundary>
           <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
             <div>
