@@ -1,0 +1,1066 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  LayoutDashboard, 
+  Car, 
+  Receipt, 
+  PiggyBank, 
+  Plus, 
+  Trash2, 
+  CheckCircle2, 
+  XCircle, 
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  Calendar as CalendarIcon,
+  ChevronRight,
+  Bell,
+  ShoppingBag,
+  Utensils
+} from 'lucide-react';
+import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Cell,
+  PieChart,
+  Pie
+} from 'recharts';
+import { cn } from './lib/utils';
+import { EarningsEntry, Bill, SavingsDeposit, DailyExpense } from './types';
+
+// --- Utils ---
+const formatCurrency = (value: number | undefined | null, options?: Intl.NumberFormatOptions) => {
+  return (value || 0).toLocaleString('pt-BR', options);
+};
+
+// --- Components ---
+
+const Card = ({ children, className }: { children: React.ReactNode; className?: string; [key: string]: any }) => (
+  <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden", className)}>
+    {children}
+  </div>
+);
+
+const Button = ({ 
+  children, 
+  onClick, 
+  variant = 'primary', 
+  className,
+  type = 'button'
+}: { 
+  children: React.ReactNode; 
+  onClick?: () => void; 
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  className?: string;
+  type?: 'button' | 'submit';
+}) => {
+  const variants = {
+    primary: "bg-slate-900 text-white hover:bg-slate-800",
+    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
+    danger: "bg-red-50 text-red-600 hover:bg-red-100",
+    ghost: "bg-transparent text-slate-600 hover:bg-slate-100"
+  };
+
+  return (
+    <button 
+      type={type}
+      onClick={onClick}
+      className={cn(
+        "px-4 py-2 rounded-xl font-medium transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50",
+        variants[variant],
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Input = ({ 
+  label, 
+  ...props 
+}: { 
+  label: string; 
+  [key: string]: any 
+}) => (
+  <div className="flex flex-col gap-1.5 w-full">
+    <label className="text-sm font-medium text-slate-700">{label}</label>
+    <input 
+      {...props}
+      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
+    />
+  </div>
+);
+
+// --- Sub-components for Views ---
+
+const EarningsView = ({ entries, onAdd, onDelete }: { 
+  entries: EarningsEntry[]; 
+  onAdd: (entry: Omit<EarningsEntry, 'id'>) => void;
+  onDelete: (id: string) => void;
+}) => {
+  const [formData, setFormData] = useState({ 
+    date: format(new Date(), 'yyyy-MM-dd'), 
+    uberEarnings: '', 
+    pop99Earnings: '',
+    costs: '' 
+  });
+
+  const uberNum = Number(formData.uberEarnings || 0);
+  const pop99Num = Number(formData.pop99Earnings || 0);
+  const totalEarnings = uberNum + pop99Num;
+
+  const getComparison = () => {
+    if (uberNum === 0 && pop99Num === 0) return null;
+    if (uberNum > pop99Num) return { text: 'Uber rendeu mais!', color: 'text-slate-900', icon: Car };
+    if (pop99Num > uberNum) return { text: '99 rendeu mais!', color: 'text-amber-600', icon: Car };
+    return { text: 'Empate técnico!', color: 'text-slate-500', icon: Car };
+  };
+
+  const comparison = getComparison();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (totalEarnings <= 0) return;
+    onAdd({
+      date: formData.date,
+      uberEarnings: uberNum,
+      pop99Earnings: pop99Num,
+      totalEarnings: totalEarnings,
+      costs: Number(formData.costs || 0)
+    });
+    setFormData({ date: format(new Date(), 'yyyy-MM-dd'), uberEarnings: '', pop99Earnings: '', costs: '' });
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold">Calculadora de Ganhos</h3>
+          {comparison && (
+            <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-100 text-xs font-bold", comparison.color)}>
+              <comparison.icon className="w-3 h-3" />
+              {comparison.text}
+            </div>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <Input 
+              label="Data" 
+              type="date" 
+              value={formData.date} 
+              onChange={(e: any) => setFormData({ ...formData, date: e.target.value })} 
+            />
+            <Input 
+              label="Ganhos Uber (R$)" 
+              type="number" 
+              placeholder="0,00"
+              value={formData.uberEarnings} 
+              onChange={(e: any) => setFormData({ ...formData, uberEarnings: e.target.value })} 
+            />
+            <Input 
+              label="Ganhos 99 (R$)" 
+              type="number" 
+              placeholder="0,00"
+              value={formData.pop99Earnings} 
+              onChange={(e: any) => setFormData({ ...formData, pop99Earnings: e.target.value })} 
+            />
+            <Input 
+              label="Custos (Combustível, etc)" 
+              type="number" 
+              placeholder="0,00"
+              value={formData.costs} 
+              onChange={(e: any) => setFormData({ ...formData, costs: e.target.value })} 
+            />
+          </div>
+
+          <div className="flex flex-col md:flex-row items-center justify-between p-4 bg-slate-900 rounded-2xl text-white gap-4">
+            <div className="text-center md:text-left">
+              <p className="text-xs text-white/50 uppercase font-bold tracking-wider">Total Integral do Dia</p>
+              <p className="text-3xl font-black">R$ {formatCurrency(totalEarnings, { minimumFractionDigits: 2 })}</p>
+            </div>
+            <Button type="submit" className="w-full md:w-auto bg-white text-slate-900 hover:bg-slate-100 h-14 px-8 text-lg">
+              <Plus className="w-5 h-5" /> Salvar no Sistema
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-bottom border-slate-100 bg-slate-50/50">
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Uber</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">99</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Custos</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Líquido</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {entries.map(entry => (
+                <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-900">
+                    {format(parseISO(entry.date), "dd/MM/yyyy")}
+                  </td>
+                  <td className="px-6 py-4 text-slate-600 text-sm">
+                    R$ {formatCurrency(entry.uberEarnings)}
+                  </td>
+                  <td className="px-6 py-4 text-amber-600 text-sm">
+                    R$ {formatCurrency(entry.pop99Earnings)}
+                  </td>
+                  <td className="px-6 py-4 font-bold text-slate-900">
+                    R$ {formatCurrency(entry.totalEarnings)}
+                  </td>
+                  <td className="px-6 py-4 text-red-500">
+                    R$ {formatCurrency(entry.costs)}
+                  </td>
+                  <td className="px-6 py-4 font-bold text-emerald-600">
+                    R$ {formatCurrency(entry.totalEarnings - entry.costs)}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button 
+                      onClick={() => onDelete(entry.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
+  bills: Bill[];
+  onAdd: (bill: Omit<Bill, 'id' | 'isPaid'>) => void;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}) => {
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    value: '', 
+    dueDate: format(new Date(), 'yyyy-MM-dd'), 
+    isRecurring: true,
+    category: 'other' as Bill['category']
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.value) return;
+    onAdd({
+      name: formData.name,
+      value: Number(formData.value),
+      dueDate: formData.dueDate,
+      isRecurring: formData.isRecurring,
+      category: formData.category
+    });
+    setFormData({ 
+      name: '', 
+      value: '', 
+      dueDate: format(new Date(), 'yyyy-MM-dd'), 
+      isRecurring: true,
+      category: 'other'
+    });
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card className="p-6">
+        <h3 className="text-lg font-bold mb-4">Adicionar Nova Conta</h3>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          <Input 
+            label="Nome da Conta" 
+            placeholder="Ex: Aluguel"
+            value={formData.name} 
+            onChange={(e: any) => setFormData({ ...formData, name: e.target.value })} 
+          />
+          <Input 
+            label="Valor (R$)" 
+            type="number" 
+            placeholder="0,00"
+            value={formData.value} 
+            onChange={(e: any) => setFormData({ ...formData, value: e.target.value })} 
+          />
+          <Input 
+            label="Vencimento" 
+            type="date" 
+            value={formData.dueDate} 
+            onChange={(e: any) => setFormData({ ...formData, dueDate: e.target.value })} 
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-slate-700">Categoria</label>
+            <select 
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
+            >
+              <option value="rent">Aluguel</option>
+              <option value="car">Carro / Financiamento</option>
+              <option value="insurance">Seguro</option>
+              <option value="other">Outros (Luz, Água, etc)</option>
+            </select>
+          </div>
+          <Button type="submit" className="w-full">
+            <Plus className="w-4 h-4" /> Adicionar
+          </Button>
+        </form>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {bills.map(bill => {
+          const isOverdue = !bill.isPaid && isBefore(parseISO(bill.dueDate), new Date()) && !isSameDay(parseISO(bill.dueDate), new Date());
+          
+          return (
+            <Card key={bill.id} className={cn(
+              "p-5 border-l-4 transition-all hover:shadow-md",
+              bill.isPaid ? "border-l-emerald-500" : isOverdue ? "border-l-red-500" : "border-l-slate-300"
+            )}>
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h4 className="font-bold text-slate-900">{bill.name}</h4>
+                  <p className="text-xs text-slate-500">Vence em {format(parseISO(bill.dueDate), 'dd/MM/yyyy')}</p>
+                </div>
+                <div className={cn(
+                  "px-2 py-1 rounded text-[10px] font-bold uppercase",
+                  bill.isPaid ? "bg-emerald-50 text-emerald-600" : isOverdue ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-600"
+                )}>
+                  {bill.isPaid ? "Pago" : isOverdue ? "Atrasado" : "Pendente"}
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between mt-6">
+                <span className="text-xl font-bold text-slate-900">R$ {formatCurrency(bill.value)}</span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => onToggle(bill.id)}
+                    className={cn(
+                      "p-2 rounded-lg transition-colors",
+                      bill.isPaid ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400 hover:text-emerald-600"
+                    )}
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                  </button>
+                  <button 
+                    onClick={() => onDelete(bill.id)}
+                    className="p-2 rounded-lg bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const SavingsView = ({ goals, deposits, onDeposit }: {
+  goals: any[];
+  deposits: SavingsDeposit[];
+  onDeposit: (deposit: Omit<SavingsDeposit, 'id'>) => void;
+}) => {
+  const [selectedBillId, setSelectedBillId] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const handleDeposit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBillId || !amount) return;
+    onDeposit({
+      billId: selectedBillId,
+      amount: Number(amount),
+      date: format(new Date(), 'yyyy-MM-dd')
+    });
+    setAmount('');
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <PiggyBank className="w-5 h-5 text-amber-500" />
+            Suas Caixinhas (Metas Diárias)
+          </h3>
+          
+          {goals.map(goal => {
+            const progress = (goal.totalSaved / goal.value) * 100;
+            
+            return (
+              <Card key={goal.id} className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="text-xl font-bold text-slate-900">{goal.name}</h4>
+                    <p className="text-sm text-slate-500">Meta: R$ {formatCurrency(goal.value)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-medium text-slate-500 uppercase">Guardar hoje:</p>
+                    <p className="text-lg font-bold text-amber-600">R$ {formatCurrency(goal.dailyNeeded, { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-slate-500">Progresso: {progress.toFixed(1)}%</span>
+                    <span className="text-slate-900">R$ {formatCurrency(goal.totalSaved)} / R$ {formatCurrency(goal.value)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-amber-500 h-full transition-all duration-1000" 
+                      style={{ width: `${Math.min(100, progress)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-4 text-xs text-slate-500">
+                  <div className="flex items-center gap-1">
+                    <CalendarIcon className="w-3 h-3" />
+                    {goal.daysLeft} dias restantes
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Faltam R$ {formatCurrency(goal.remaining)}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+
+          {goals.length === 0 && (
+            <Card className="p-12 flex flex-col items-center justify-center text-slate-400 border-dashed border-2">
+              <PiggyBank className="w-12 h-12 mb-4 opacity-20" />
+              <p className="text-center">Adicione contas nas categorias Aluguel, Carro ou Seguro para criar caixinhas automáticas.</p>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Depositar na Caixinha</h3>
+            <form onSubmit={handleDeposit} className="space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">Escolher Meta</label>
+                <select 
+                  value={selectedBillId}
+                  onChange={(e) => setSelectedBillId(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
+                >
+                  <option value="">Selecione uma conta...</option>
+                  {goals.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+              <Input 
+                label="Valor do Depósito (R$)" 
+                type="number" 
+                placeholder="0,00"
+                value={amount}
+                onChange={(e: any) => setAmount(e.target.value)}
+              />
+              <Button type="submit" className="w-full">
+                Confirmar Depósito
+              </Button>
+            </form>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold mb-4 text-sm uppercase tracking-wider text-slate-500">Histórico Recente</h3>
+            <div className="space-y-3">
+              {deposits.slice(0, 5).reverse().map(d => {
+                const billId = d.billId;
+                // Note: We don't have access to bills here directly unless passed, but we can assume it's okay for now or pass it
+                return (
+                  <div key={d.id} className="flex justify-between items-center text-sm">
+                    <div>
+                      <p className="font-medium text-slate-900">Depósito</p>
+                      <p className="text-[10px] text-slate-400">{format(parseISO(d.date), 'dd/MM/yyyy')}</p>
+                    </div>
+                    <span className="font-bold text-emerald-600">+ R$ {formatCurrency(d.amount)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ExpensesView = ({ expenses, onAdd, onDelete }: {
+  expenses: DailyExpense[];
+  onAdd: (expense: Omit<DailyExpense, 'id'>) => void;
+  onDelete: (id: string) => void;
+}) => {
+  const [formData, setFormData] = useState({ 
+    description: '', 
+    value: '', 
+    date: format(new Date(), 'yyyy-MM-dd'),
+    category: 'food' as DailyExpense['category']
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.description || !formData.value) return;
+    onAdd({
+      description: formData.description,
+      value: Number(formData.value),
+      date: formData.date,
+      category: formData.category
+    });
+    setFormData({ 
+      description: '', 
+      value: '', 
+      date: format(new Date(), 'yyyy-MM-dd'),
+      category: 'food'
+    });
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card className="p-6">
+        <h3 className="text-lg font-bold mb-4">Novo Gasto do Dia</h3>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <Input 
+            label="Descrição" 
+            placeholder="Ex: Lanche, Almoço..."
+            value={formData.description} 
+            onChange={(e: any) => setFormData({ ...formData, description: e.target.value })} 
+          />
+          <Input 
+            label="Valor (R$)" 
+            type="number" 
+            placeholder="0,00"
+            value={formData.value} 
+            onChange={(e: any) => setFormData({ ...formData, value: e.target.value })} 
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-slate-700">Categoria</label>
+            <select 
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
+            >
+              <option value="food">Comida</option>
+              <option value="delivery">Delivery</option>
+              <option value="transport">Transporte</option>
+              <option value="other">Outros</option>
+            </select>
+          </div>
+          <Button type="submit" className="w-full">
+            <Plus className="w-4 h-4" /> Registrar
+          </Button>
+        </form>
+      </Card>
+
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-bottom border-slate-100 bg-slate-50/50">
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Categoria</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Valor</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {expenses.map(expense => (
+                <tr key={expense.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 text-slate-500 text-sm">
+                    {format(parseISO(expense.date), "dd/MM/yyyy")}
+                  </td>
+                  <td className="px-6 py-4 font-medium text-slate-900">
+                    {expense.description}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
+                      {expense.category === 'food' ? 'Comida' : expense.category === 'delivery' ? 'Delivery' : expense.category === 'transport' ? 'Transporte' : 'Outros'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 font-bold text-red-500">
+                    R$ {formatCurrency(expense.value)}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button 
+                      onClick={() => onDelete(expense.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {expenses.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                    Nenhum gasto registrado hoje.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// --- Main App ---
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'earnings' | 'bills' | 'savings' | 'expenses'>('dashboard');
+  
+  // State Persistence
+  const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>(() => {
+    const saved = localStorage.getItem('uber_entries'); // Keep same key for migration
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      // Migration: ensure all entries have the new fields and handle old format
+      return parsed.map((entry: any) => ({
+        ...entry,
+        uberEarnings: entry.uberEarnings ?? entry.earnings ?? 0,
+        pop99Earnings: entry.pop99Earnings ?? 0,
+        totalEarnings: entry.totalEarnings ?? entry.earnings ?? 0,
+        costs: entry.costs ?? 0
+      }));
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [bills, setBills] = useState<Bill[]>(() => {
+    const saved = localStorage.getItem('bills');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [deposits, setDeposits] = useState<SavingsDeposit[]>(() => {
+    const saved = localStorage.getItem('deposits');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>(() => {
+    const saved = localStorage.getItem('daily_expenses');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('uber_entries', JSON.stringify(earningsEntries));
+  }, [earningsEntries]);
+
+  useEffect(() => {
+    localStorage.setItem('bills', JSON.stringify(bills));
+  }, [bills]);
+
+  useEffect(() => {
+    localStorage.setItem('deposits', JSON.stringify(deposits));
+  }, [deposits]);
+
+  useEffect(() => {
+    localStorage.setItem('daily_expenses', JSON.stringify(dailyExpenses));
+  }, [dailyExpenses]);
+
+  // --- Handlers ---
+
+  const addEarningsEntry = (entry: Omit<EarningsEntry, 'id'>) => {
+    setEarningsEntries(prev => [{ ...entry, id: crypto.randomUUID() }, ...prev]);
+  };
+
+  const deleteEarningsEntry = (id: string) => {
+    setEarningsEntries(prev => prev.filter(e => e.id !== id));
+  };
+
+  const addBill = (bill: Omit<Bill, 'id' | 'isPaid'>) => {
+    setBills(prev => [...prev, { ...bill, id: crypto.randomUUID(), isPaid: false }]);
+  };
+
+  const toggleBillPaid = (id: string) => {
+    setBills(prev => {
+      const updated = prev.map(b => b.id === id ? { ...b, isPaid: !b.isPaid } : b);
+      const bill = prev.find(b => b.id === id);
+      
+      // Recurrence logic: if marking as paid and is recurring, create next month's bill
+      if (bill && !bill.isPaid && bill.isRecurring) {
+        const nextDueDate = format(addMonths(parseISO(bill.dueDate), 1), 'yyyy-MM-dd');
+        const alreadyExists = prev.some(b => b.name === bill.name && b.dueDate === nextDueDate);
+        
+        if (!alreadyExists) {
+          return [...updated, {
+            ...bill,
+            id: crypto.randomUUID(),
+            dueDate: nextDueDate,
+            isPaid: false
+          }];
+        }
+      }
+      
+      return updated;
+    });
+  };
+
+  const deleteBill = (id: string) => {
+    setBills(prev => prev.filter(b => b.id !== id));
+    setDeposits(prev => prev.filter(d => d.billId !== id));
+  };
+
+  const addDeposit = (deposit: Omit<SavingsDeposit, 'id'>) => {
+    setDeposits(prev => [...prev, { ...deposit, id: crypto.randomUUID() }]);
+  };
+
+  const addDailyExpense = (expense: Omit<DailyExpense, 'id'>) => {
+    setDailyExpenses(prev => [{ ...expense, id: crypto.randomUUID() }, ...prev]);
+  };
+
+  const deleteDailyExpense = (id: string) => {
+    setDailyExpenses(prev => prev.filter(e => e.id !== id));
+  };
+
+  // --- Calculations ---
+
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    
+    const monthEarnings = earningsEntries.filter(e => {
+      const d = parseISO(e.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+
+    const totalEarnings = monthEarnings.reduce((acc, curr) => acc + (curr.totalEarnings || (curr as any).earnings || 0), 0);
+    const totalCosts = monthEarnings.reduce((acc, curr) => acc + curr.costs, 0);
+    const netEarnings = totalEarnings - totalCosts;
+
+    const monthBills = bills.filter(b => {
+      const d = parseISO(b.dueDate);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+
+    const totalBills = monthBills.reduce((acc, curr) => acc + curr.value, 0);
+    const paidBills = monthBills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
+
+    const totalDailyExpenses = dailyExpenses.filter(e => {
+      const d = parseISO(e.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).reduce((acc, curr) => acc + curr.value, 0);
+
+    return {
+      totalEarnings,
+      totalCosts,
+      netEarnings,
+      totalBills,
+      paidBills,
+      pendingBills: totalBills - paidBills,
+      totalDailyExpenses
+    };
+  }, [earningsEntries, bills, dailyExpenses]);
+
+  const savingsGoals = useMemo(() => {
+    return bills
+      .filter(b => ['rent', 'car', 'insurance'].includes(b.category))
+      .map(bill => {
+        const today = new Date();
+        const dueDate = parseISO(bill.dueDate);
+        const daysLeft = differenceInDays(dueDate, today);
+        
+        const totalSaved = deposits
+          .filter(d => d.billId === bill.id)
+          .reduce((acc, curr) => acc + curr.amount, 0);
+        
+        const remaining = Math.max(0, bill.value - totalSaved);
+        const dailyNeeded = daysLeft > 0 ? remaining / daysLeft : remaining;
+
+        return {
+          ...bill,
+          totalSaved,
+          remaining,
+          dailyNeeded,
+          daysLeft: Math.max(0, daysLeft)
+        };
+      });
+  }, [bills, deposits]);
+
+  // --- Renderers ---
+
+  const renderDashboard = () => (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-6 bg-slate-900 text-white border-none">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-white/10 rounded-lg">
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+            </div>
+            <span className="text-xs font-medium text-white/50 uppercase tracking-wider">Ganhos Uber (Mês)</span>
+          </div>
+          <h3 className="text-3xl font-bold">R$ {formatCurrency(monthlyStats.totalEarnings)}</h3>
+          <p className="text-sm text-white/60 mt-2">Líquido: R$ {formatCurrency(monthlyStats.netEarnings)}</p>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-red-50 rounded-lg">
+              <TrendingDown className="w-5 h-5 text-red-500" />
+            </div>
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Gastos Diários (Mês)</span>
+          </div>
+          <h3 className="text-3xl font-bold text-slate-900">R$ {formatCurrency(monthlyStats.totalDailyExpenses)}</h3>
+          <p className="text-sm text-slate-500 mt-2">Lanches, Delivery, etc</p>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-slate-100 rounded-lg">
+              <Receipt className="w-5 h-5 text-slate-500" />
+            </div>
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Contas Totais</span>
+          </div>
+          <h3 className="text-3xl font-bold text-slate-900">R$ {formatCurrency(monthlyStats.totalBills)}</h3>
+          <div className="w-full bg-slate-100 h-2 rounded-full mt-4 overflow-hidden">
+            <div 
+              className="bg-slate-900 h-full transition-all duration-1000" 
+              style={{ width: `${(monthlyStats.paidBills / (monthlyStats.totalBills || 1)) * 100}%` }}
+            />
+          </div>
+          <p className="text-xs text-slate-500 mt-2">Pagas: R$ {formatCurrency(monthlyStats.paidBills)}</p>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <PiggyBank className="w-5 h-5 text-amber-500" />
+            </div>
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Reserva Diária</span>
+          </div>
+          <h3 className="text-3xl font-bold text-slate-900">
+            R$ {formatCurrency(savingsGoals.reduce((acc, curr) => acc + curr.dailyNeeded, 0), { minimumFractionDigits: 2 })}
+          </h3>
+          <p className="text-sm text-slate-500 mt-2">Valor total a guardar hoje</p>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-slate-400" />
+            Desempenho (Últimos 7 dias)
+          </h4>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={earningsEntries
+                .filter(e => {
+                  const d = parseISO(e.date);
+                  const now = new Date();
+                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                })
+                .slice(0, 7)
+                .reverse()
+              }>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="date" 
+                  tickFormatter={(val) => format(parseISO(val), 'dd/MM')}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#64748b', fontSize: 12 }}
+                />
+                <YAxis 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#64748b', fontSize: 12 }}
+                />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="totalEarnings" fill="#0f172a" radius={[4, 4, 0, 0]} name="Ganhos" />
+                <Bar dataKey="costs" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Custos" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+            <Bell className="w-5 h-5 text-slate-400" />
+            Próximos Vencimentos
+          </h4>
+          <div className="space-y-4">
+            {bills
+              .filter(b => {
+                const d = parseISO(b.dueDate);
+                const now = new Date();
+                return !b.isPaid && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+              })
+              .sort((a, b) => parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime())
+              .slice(0, 4)
+              .map(bill => {
+                const days = differenceInDays(parseISO(bill.dueDate), new Date());
+                return (
+                  <div key={bill.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        days < 0 ? "bg-red-500 animate-pulse" : days <= 3 ? "bg-amber-500" : "bg-slate-300"
+                      )} />
+                      <div>
+                        <p className="font-medium text-slate-900">{bill.name}</p>
+                        <p className="text-xs text-slate-500">{format(parseISO(bill.dueDate), "dd 'de' MMMM", { locale: ptBR })}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-slate-900">R$ {formatCurrency(bill.value)}</p>
+                      <p className={cn(
+                        "text-[10px] font-bold uppercase tracking-tighter",
+                        days < 0 ? "text-red-500" : "text-slate-400"
+                      )}>
+                        {days < 0 ? `Atrasado ${Math.abs(days)}d` : days === 0 ? "Vence hoje" : `Em ${days} dias`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            {bills.filter(b => !b.isPaid).length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <CheckCircle2 className="w-12 h-12 mb-2 opacity-20" />
+                <p>Tudo em dia!</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      {/* Sidebar / Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 md:top-0 md:bottom-auto md:flex-col md:w-64 md:h-screen md:border-r md:border-t-0 z-50">
+        <div className="hidden md:flex items-center gap-3 mb-12 px-2">
+          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
+            <Car className="text-white w-6 h-6" />
+          </div>
+          <h1 className="text-xl font-black tracking-tighter italic">UBER<span className="text-slate-400">FINANÇAS</span></h1>
+        </div>
+
+        <div className="flex justify-around md:flex-col md:gap-2">
+          {[
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Início' },
+            { id: 'earnings', icon: Car, label: 'Ganhos' },
+            { id: 'expenses', icon: ShoppingBag, label: 'Gastos' },
+            { id: 'bills', icon: Receipt, label: 'Contas' },
+            { id: 'savings', icon: PiggyBank, label: 'Caixinha' },
+          ].map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id as any)}
+              className={cn(
+                "flex flex-col md:flex-row items-center gap-1 md:gap-3 px-4 py-2 rounded-xl transition-all",
+                activeTab === item.id 
+                  ? "text-slate-900 md:bg-slate-100 font-bold" 
+                  : "text-slate-400 hover:text-slate-600 md:hover:bg-slate-50"
+              )}
+            >
+              <item.icon className={cn("w-6 h-6 md:w-5 md:h-5", activeTab === item.id ? "text-slate-900" : "text-slate-400")} />
+              <span className="text-[10px] md:text-sm font-medium">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="pb-24 pt-6 px-4 md:pl-72 md:pr-8 md:pt-8 max-w-7xl mx-auto">
+        <header className="mb-8 flex justify-between items-end">
+          <div>
+            <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-1">
+              {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+            </p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+              {activeTab === 'dashboard' && "Olá, Wesley!"}
+              {activeTab === 'earnings' && "Ganhos do Dia"}
+              {activeTab === 'expenses' && "Gastos do Dia"}
+              {activeTab === 'bills' && "Suas Contas"}
+              {activeTab === 'savings' && "Minhas Caixinhas"}
+            </h2>
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+              <span className="font-bold text-slate-600">W</span>
+            </div>
+          </div>
+        </header>
+
+        {activeTab === 'dashboard' && renderDashboard()}
+        {activeTab === 'earnings' && (
+          <EarningsView 
+            entries={earningsEntries.filter(e => {
+              const d = parseISO(e.date);
+              const now = new Date();
+              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            })} 
+            onAdd={addEarningsEntry} 
+            onDelete={deleteEarningsEntry} 
+          />
+        )}
+        {activeTab === 'expenses' && (
+          <ExpensesView 
+            expenses={dailyExpenses.filter(e => {
+              const d = parseISO(e.date);
+              const now = new Date();
+              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            })} 
+            onAdd={addDailyExpense} 
+            onDelete={deleteDailyExpense} 
+          />
+        )}
+        {activeTab === 'bills' && (
+          <BillsView 
+            bills={bills.filter(b => {
+              const d = parseISO(b.dueDate);
+              const now = new Date();
+              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            })} 
+            onAdd={addBill} 
+            onToggle={toggleBillPaid} 
+            onDelete={deleteBill} 
+          />
+        )}
+        {activeTab === 'savings' && (
+          <SavingsView 
+            goals={savingsGoals} 
+            deposits={deposits.filter(d => {
+              const date = parseISO(d.date);
+              const now = new Date();
+              return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+            })} 
+            onDeposit={addDeposit} 
+          />
+        )}
+      </main>
+    </div>
+  );
+}
