@@ -343,11 +343,13 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
   );
 };
 
-const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
+const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCategory }: {
   bills: Bill[];
   onAdd: (bill: Omit<Bill, 'id' | 'isPaid'>) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  customCategories: string[];
+  onAddCategory: (name: string) => void;
 }) => {
   const [formData, setFormData] = useState({ 
     name: '', 
@@ -356,6 +358,8 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
     isRecurring: true,
     category: 'other' as Bill['category']
   });
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -374,6 +378,14 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
       isRecurring: true,
       category: 'other'
     });
+  };
+
+  const handleAddCategory = () => {
+    if (newCategoryName.trim()) {
+      onAddCategory(newCategoryName.trim());
+      setNewCategoryName('');
+      setShowAddCategory(false);
+    }
   };
 
   return (
@@ -401,17 +413,49 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })} 
           />
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700">Categoria</label>
-            <select 
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value as Bill['category'] })}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
-            >
-              <option value="rent">Aluguel</option>
-              <option value="car">Carro / Financiamento</option>
-              <option value="insurance">Seguro</option>
-              <option value="other">Outros (Luz, Água, etc)</option>
-            </select>
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium text-slate-700">Categoria</label>
+              <button 
+                type="button"
+                onClick={() => setShowAddCategory(!showAddCategory)}
+                className="text-slate-400 hover:text-slate-900 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+            {showAddCategory ? (
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="Nova..."
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="flex-1 px-2 py-1 text-xs rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                />
+                <button 
+                  type="button"
+                  onClick={handleAddCategory}
+                  className="px-2 py-1 bg-slate-900 text-white text-[10px] rounded font-bold"
+                >
+                  OK
+                </button>
+              </div>
+            ) : (
+              <select 
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as Bill['category'] })}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
+              >
+                <option value="rent">Aluguel</option>
+                <option value="car">Carro / Financiamento</option>
+                <option value="insurance">Seguro</option>
+                <option value="maintenance">Manutenção</option>
+                <option value="other">Outros (Luz, Água, etc)</option>
+                {customCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            )}
           </div>
           <Button type="submit" className="w-full">
             <Plus className="w-4 h-4" /> Adicionar
@@ -476,6 +520,7 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
 }) => {
   const [selectedBillId, setSelectedBillId] = useState('');
   const [amount, setAmount] = useState('');
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
 
   const handleDeposit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -489,10 +534,17 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
   };
 
   const confirmDaily = (goal: any) => {
+    const depositAmount = customAmounts[goal.id] ? Number(customAmounts[goal.id]) : Number(goal.dailyNeeded.toFixed(2));
     onDeposit({
       billId: goal.id,
-      amount: Number(goal.dailyNeeded.toFixed(2)),
+      amount: depositAmount,
       date: format(new Date(), 'yyyy-MM-dd')
+    });
+    // Clear custom amount for this goal
+    setCustomAmounts(prev => {
+      const next = { ...prev };
+      delete next[goal.id];
+      return next;
     });
   };
 
@@ -571,7 +623,7 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-4 text-xs text-slate-500">
                       <div className="flex items-center gap-1">
                         <CalendarIcon className="w-3 h-3" />
@@ -580,12 +632,24 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
                     </div>
                     
                     {!alreadyDepositedToday && goal.remaining > 0 && (
-                      <Button 
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 text-xs"
-                        onClick={() => confirmDaily(goal)}
-                      >
-                        Confirmar Depósito de Hoje
-                      </Button>
+                      <div className="flex items-center gap-2 w-full md:w-auto">
+                        <div className="relative flex-1 md:w-32">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">R$</span>
+                          <input 
+                            type="number"
+                            placeholder={goal.dailyNeeded.toFixed(2)}
+                            value={customAmounts[goal.id] || ''}
+                            onChange={(e) => setCustomAmounts(prev => ({ ...prev, [goal.id]: e.target.value }))}
+                            className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+                        <Button 
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-bold whitespace-nowrap"
+                          onClick={() => confirmDaily(goal)}
+                        >
+                          Confirmar Depósito
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -989,6 +1053,17 @@ export default function App() {
     }
   });
 
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('uber_custom_categories');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [deposits, setDeposits] = useState<SavingsDeposit[]>(() => {
     const saved = localStorage.getItem('deposits');
     if (!saved) return [];
@@ -1020,6 +1095,10 @@ export default function App() {
   }, [bills]);
 
   useEffect(() => {
+    localStorage.setItem('uber_custom_categories', JSON.stringify(customCategories));
+  }, [customCategories]);
+
+  useEffect(() => {
     localStorage.setItem('deposits', JSON.stringify(deposits));
   }, [deposits]);
 
@@ -1049,8 +1128,8 @@ export default function App() {
       const isMarkingAsPaid = !bill.isPaid;
       const updated = prev.map(b => b.id === id ? { ...b, isPaid: !b.isPaid } : b);
       
-      // Recurrence logic: if marking as paid AND (is recurring OR is a caixinha category)
-      if (isMarkingAsPaid && (bill.isRecurring || CAIXINHA_CATEGORIES.includes(bill.category))) {
+      // Recurrence logic: if marking as paid, create a new item for the next month
+      if (isMarkingAsPaid) {
         const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
         const alreadyExists = prev.some(b => b.name === bill.name && b.dueDate === nextDueDate);
         
@@ -1461,6 +1540,8 @@ export default function App() {
               onAdd={addBill} 
               onToggle={toggleBillPaid} 
               onDelete={deleteBill} 
+              customCategories={customCategories}
+              onAddCategory={(name) => setCustomCategories(prev => [...prev, name])}
             />
           )}
           {activeTab === 'savings' && (
