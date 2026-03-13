@@ -14,6 +14,8 @@ import {
   Trash2, 
   CheckCircle2, 
   XCircle, 
+  X,
+  Edit2,
   AlertCircle,
   TrendingUp,
   TrendingDown,
@@ -513,14 +515,18 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
   );
 };
 
-const SavingsView = ({ goals, deposits, onDeposit }: {
+const SavingsView = ({ goals, deposits, onDeposit, onDeleteDeposit, onUpdateDeposit }: {
   goals: any[];
   deposits: SavingsDeposit[];
   onDeposit: (deposit: Omit<SavingsDeposit, 'id'>) => void;
+  onDeleteDeposit: (id: string) => void;
+  onUpdateDeposit: (id: string, amount: number) => void;
 }) => {
   const [selectedBillId, setSelectedBillId] = useState('');
   const [amount, setAmount] = useState('');
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
+  const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState('');
 
   const handleDeposit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -546,6 +552,19 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
       delete next[goal.id];
       return next;
     });
+  };
+
+  const startEditing = (deposit: SavingsDeposit) => {
+    setEditingDepositId(deposit.id);
+    setEditAmount(deposit.amount.toString());
+  };
+
+  const saveEdit = () => {
+    if (editingDepositId && editAmount) {
+      onUpdateDeposit(editingDepositId, Number(editAmount));
+      setEditingDepositId(null);
+      setEditAmount('');
+    }
   };
 
   return (
@@ -698,19 +717,58 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
           <Card className="p-6">
             <h3 className="font-bold mb-4 text-sm uppercase tracking-wider text-slate-500">Histórico Recente</h3>
             <div className="space-y-3">
-              {deposits.slice(0, 5).reverse().map(d => {
-                const billId = d.billId;
-                // Note: We don't have access to bills here directly unless passed, but we can assume it's okay for now or pass it
+              {deposits.slice(0, 10).reverse().map(d => {
+                const isEditing = editingDepositId === d.id;
                 return (
-                  <div key={d.id} className="flex justify-between items-center text-sm">
-                    <div>
+                  <div key={d.id} className="flex justify-between items-center text-sm p-2 rounded-lg hover:bg-slate-50 transition-colors group">
+                    <div className="flex-1">
                       <p className="font-medium text-slate-900">Depósito</p>
                       <p className="text-[10px] text-slate-400">{safeFormat(d.date, 'dd/MM/yyyy')}</p>
                     </div>
-                    <span className="font-bold text-emerald-600">+ R$ {formatCurrency(d.amount)}</span>
+                    
+                    <div className="flex items-center gap-3">
+                      {isEditing ? (
+                        <div className="flex items-center gap-1">
+                          <input 
+                            type="number"
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value)}
+                            className="w-20 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            autoFocus
+                          />
+                          <button onClick={saveEdit} className="text-emerald-600 hover:text-emerald-700">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setEditingDepositId(null)} className="text-slate-400 hover:text-slate-600">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="font-bold text-emerald-600">R$ {formatCurrency(d.amount)}</span>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => startEditing(d)}
+                              className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => onDeleteDeposit(d.id)}
+                              className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })}
+              {deposits.length === 0 && (
+                <p className="text-center text-xs text-slate-400 py-4">Nenhum depósito realizado.</p>
+              )}
             </div>
           </Card>
         </div>
@@ -1157,6 +1215,14 @@ export default function App() {
     setDeposits(prev => [...prev, { ...deposit, id: generateId() }]);
   };
 
+  const deleteDeposit = (id: string) => {
+    setDeposits(prev => prev.filter(d => d.id !== id));
+  };
+
+  const updateDeposit = (id: string, amount: number) => {
+    setDeposits(prev => prev.map(d => d.id === id ? { ...d, amount } : d));
+  };
+
   const addDailyExpense = (expense: Omit<DailyExpense, 'id'>) => {
     setDailyExpenses(prev => [{ ...expense, id: generateId() }, ...prev]);
   };
@@ -1555,6 +1621,8 @@ export default function App() {
                 return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
               })} 
               onDeposit={addDeposit} 
+              onDeleteDeposit={deleteDeposit}
+              onUpdateDeposit={updateDeposit}
             />
           )}
           {activeTab === 'reminders' && (
