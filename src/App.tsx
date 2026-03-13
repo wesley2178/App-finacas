@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import * as React from 'react';
+import { useState, useEffect, useMemo, Component } from 'react';
 import { 
   LayoutDashboard, 
   Car, 
@@ -48,9 +49,83 @@ const generateId = () => {
   }
 };
 
+const safeParseISO = (dateStr: any) => {
+  if (!dateStr || typeof dateStr !== 'string') return new Date();
+  const d = parseISO(dateStr);
+  return isNaN(d.getTime()) ? new Date() : d;
+};
+
+const safeFormat = (dateStr: any, formatStr: string) => {
+  try {
+    const d = safeParseISO(dateStr);
+    return format(d, formatStr, { locale: ptBR });
+  } catch (e) {
+    return 'Data inválida';
+  }
+};
+
 const formatCurrency = (value: number | undefined | null, options?: Intl.NumberFormatOptions) => {
   return (value || 0).toLocaleString('pt-BR', options);
 };
+
+// --- Error Boundary ---
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = { hasError: false };
+
+  public static getDerivedStateFromError(_: Error): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  public render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+          <Card className="max-w-md w-full p-8 text-center space-y-6">
+            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-10 h-10 text-red-500" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-slate-900">Ops! Algo deu errado.</h2>
+              <p className="text-slate-500">Ocorreu um erro inesperado ao carregar esta aba. Isso pode ser devido a dados corrompidos.</p>
+            </div>
+            <div className="pt-4 space-y-3">
+              <Button 
+                onClick={() => window.location.reload()} 
+                className="w-full"
+              >
+                Tentar Novamente
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.reload();
+                }} 
+                className="w-full"
+              >
+                Limpar Todos os Dados
+              </Button>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    return (this as any).props.children;
+  }
+}
 
 // --- Components ---
 
@@ -225,7 +300,7 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
               {entries.map(entry => (
                 <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-900">
-                    {format(parseISO(entry.date), "dd/MM/yyyy")}
+                    {safeFormat(entry.date, "dd/MM/yyyy")}
                   </td>
                   <td className="px-6 py-4 text-slate-600 text-sm">
                     R$ {formatCurrency(entry.uberEarnings)}
@@ -338,7 +413,7 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {bills.map(bill => {
-          const isOverdue = !bill.isPaid && isBefore(parseISO(bill.dueDate), new Date()) && !isSameDay(parseISO(bill.dueDate), new Date());
+          const isOverdue = !bill.isPaid && isBefore(safeParseISO(bill.dueDate), new Date()) && !isSameDay(safeParseISO(bill.dueDate), new Date());
           
           return (
             <Card key={bill.id} className={cn(
@@ -348,7 +423,7 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete }: {
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h4 className="font-bold text-slate-900">{bill.name}</h4>
-                  <p className="text-xs text-slate-500">Vence em {format(parseISO(bill.dueDate), 'dd/MM/yyyy')}</p>
+                  <p className="text-xs text-slate-500">Vence em {safeFormat(bill.dueDate, 'dd/MM/yyyy')}</p>
                 </div>
                 <div className={cn(
                   "px-2 py-1 rounded text-[10px] font-bold uppercase",
@@ -505,7 +580,7 @@ const SavingsView = ({ goals, deposits, onDeposit }: {
                   <div key={d.id} className="flex justify-between items-center text-sm">
                     <div>
                       <p className="font-medium text-slate-900">Depósito</p>
-                      <p className="text-[10px] text-slate-400">{format(parseISO(d.date), 'dd/MM/yyyy')}</p>
+                      <p className="text-[10px] text-slate-400">{safeFormat(d.date, 'dd/MM/yyyy')}</p>
                     </div>
                     <span className="font-bold text-emerald-600">+ R$ {formatCurrency(d.amount)}</span>
                   </div>
@@ -601,7 +676,7 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
               {expenses.map(expense => (
                 <tr key={expense.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4 text-slate-500 text-sm">
-                    {format(parseISO(expense.date), "dd/MM/yyyy")}
+                    {safeFormat(expense.date, "dd/MM/yyyy")}
                   </td>
                   <td className="px-6 py-4 font-medium text-slate-900">
                     {expense.description}
@@ -734,7 +809,7 @@ export default function App() {
       
       // Recurrence logic: if marking as paid and is recurring, create next month's bill
       if (bill && !bill.isPaid && bill.isRecurring) {
-        const nextDueDate = format(addMonths(parseISO(bill.dueDate), 1), 'yyyy-MM-dd');
+        const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
         const alreadyExists = prev.some(b => b.name === bill.name && b.dueDate === nextDueDate);
         
         if (!alreadyExists) {
@@ -771,67 +846,85 @@ export default function App() {
   // --- Calculations ---
 
   const monthlyStats = useMemo(() => {
-    const now = new Date();
-    
-    const monthEarnings = earningsEntries.filter(e => {
-      if (typeof e.date !== 'string') return false;
-      const d = parseISO(e.date);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
+    try {
+      const now = new Date();
+      
+      const monthEarnings = earningsEntries.filter(e => {
+        if (typeof e.date !== 'string') return false;
+        const d = safeParseISO(e.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
 
-    const totalEarnings = monthEarnings.reduce((acc, curr) => acc + (curr.totalEarnings || (curr as any).earnings || 0), 0);
-    const totalCosts = monthEarnings.reduce((acc, curr) => acc + curr.costs, 0);
-    const netEarnings = totalEarnings - totalCosts;
+      const totalEarnings = monthEarnings.reduce((acc, curr) => acc + (curr.totalEarnings || (curr as any).earnings || 0), 0);
+      const totalCosts = monthEarnings.reduce((acc, curr) => acc + curr.costs, 0);
+      const netEarnings = totalEarnings - totalCosts;
 
-    const monthBills = bills.filter(b => {
-      if (typeof b.dueDate !== 'string') return false;
-      const d = parseISO(b.dueDate);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
+      const monthBills = bills.filter(b => {
+        if (typeof b.dueDate !== 'string') return false;
+        const d = safeParseISO(b.dueDate);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
 
-    const totalBills = monthBills.reduce((acc, curr) => acc + curr.value, 0);
-    const paidBills = monthBills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
+      const totalBills = monthBills.reduce((acc, curr) => acc + curr.value, 0);
+      const paidBills = monthBills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
 
-    const totalDailyExpenses = dailyExpenses.filter(e => {
-      if (typeof e.date !== 'string') return false;
-      const d = parseISO(e.date);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }).reduce((acc, curr) => acc + curr.value, 0);
+      const totalDailyExpenses = dailyExpenses.filter(e => {
+        if (typeof e.date !== 'string') return false;
+        const d = safeParseISO(e.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).reduce((acc, curr) => acc + curr.value, 0);
 
-    return {
-      totalEarnings,
-      totalCosts,
-      netEarnings,
-      totalBills,
-      paidBills,
-      pendingBills: totalBills - paidBills,
-      totalDailyExpenses
-    };
+      return {
+        totalEarnings,
+        totalCosts,
+        netEarnings,
+        totalBills,
+        paidBills,
+        pendingBills: totalBills - paidBills,
+        totalDailyExpenses
+      };
+    } catch (e) {
+      console.error("Error calculating monthly stats", e);
+      return {
+        totalEarnings: 0,
+        totalCosts: 0,
+        netEarnings: 0,
+        totalBills: 0,
+        paidBills: 0,
+        pendingBills: 0,
+        totalDailyExpenses: 0
+      };
+    }
   }, [earningsEntries, bills, dailyExpenses]);
 
   const savingsGoals = useMemo(() => {
-    return bills
-      .filter(b => ['rent', 'car', 'insurance'].includes(b.category))
-      .map(bill => {
-        const today = new Date();
-        const dueDate = parseISO(bill.dueDate);
-        const daysLeft = differenceInDays(dueDate, today);
-        
-        const totalSaved = deposits
-          .filter(d => d.billId === bill.id)
-          .reduce((acc, curr) => acc + curr.amount, 0);
-        
-        const remaining = Math.max(0, bill.value - totalSaved);
-        const dailyNeeded = daysLeft > 0 ? remaining / daysLeft : remaining;
+    try {
+      return bills
+        .filter(b => ['rent', 'car', 'insurance'].includes(b.category))
+        .map(bill => {
+          const today = new Date();
+          const dueDate = safeParseISO(bill.dueDate);
+          const daysLeft = differenceInDays(dueDate, today);
+          
+          const totalSaved = deposits
+            .filter(d => d.billId === bill.id)
+            .reduce((acc, curr) => acc + curr.amount, 0);
+          
+          const remaining = Math.max(0, bill.value - totalSaved);
+          const dailyNeeded = daysLeft > 0 ? remaining / daysLeft : remaining;
 
-        return {
-          ...bill,
-          totalSaved,
-          remaining,
-          dailyNeeded,
-          daysLeft: Math.max(0, daysLeft)
-        };
-      });
+          return {
+            ...bill,
+            totalSaved,
+            remaining,
+            dailyNeeded,
+            daysLeft: Math.max(0, daysLeft)
+          };
+        });
+    } catch (e) {
+      console.error("Error calculating savings goals", e);
+      return [];
+    }
   }, [bills, deposits]);
 
   // --- Renderers ---
@@ -903,7 +996,7 @@ export default function App() {
               <BarChart data={earningsEntries
                 .filter(e => {
                   if (typeof e.date !== 'string') return false;
-                  const d = parseISO(e.date);
+                  const d = safeParseISO(e.date);
                   const now = new Date();
                   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                 })
@@ -913,7 +1006,7 @@ export default function App() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="date" 
-                  tickFormatter={(val) => format(parseISO(val), 'dd/MM')}
+                  tickFormatter={(val) => safeFormat(val, 'dd/MM')}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: '#64748b', fontSize: 12 }}
@@ -943,14 +1036,14 @@ export default function App() {
             {bills
               .filter(b => {
                 if (typeof b.dueDate !== 'string') return false;
-                const d = parseISO(b.dueDate);
+                const d = safeParseISO(b.dueDate);
                 const now = new Date();
                 return !b.isPaid && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
               })
-              .sort((a, b) => parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime())
+              .sort((a, b) => safeParseISO(a.dueDate).getTime() - safeParseISO(b.dueDate).getTime())
               .slice(0, 4)
               .map(bill => {
-                const days = differenceInDays(parseISO(bill.dueDate), new Date());
+                const days = differenceInDays(safeParseISO(bill.dueDate), new Date());
                 return (
                   <div key={bill.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <div className="flex items-center gap-3">
@@ -960,7 +1053,7 @@ export default function App() {
                       )} />
                       <div>
                         <p className="font-medium text-slate-900">{bill.name}</p>
-                        <p className="text-xs text-slate-500">{format(parseISO(bill.dueDate), "dd 'de' MMMM", { locale: ptBR })}</p>
+                        <p className="text-xs text-slate-500">{safeFormat(bill.dueDate, "dd 'de' MMMM")}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -1026,93 +1119,95 @@ export default function App() {
 
       {/* Main Content */}
       <main className="pb-24 pt-6 px-4 md:pl-72 md:pr-8 md:pt-8 max-w-7xl mx-auto">
-        <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-          <div>
-            <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-1">
-              {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-            </p>
-            <div className="flex items-center gap-3">
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-                {activeTab === 'dashboard' && "Olá, Wesley!"}
-                {activeTab === 'earnings' && "Ganhos do Dia"}
-                {activeTab === 'expenses' && "Gastos do Dia"}
-                {activeTab === 'bills' && "Suas Contas"}
-                {activeTab === 'savings' && "Minhas Caixinhas"}
-              </h2>
-              <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg uppercase tracking-wider">
-                {showAllData ? "Histórico Completo" : "Mês Atual"}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setShowAllData(!showAllData)}
-              className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm"
-            >
-              {showAllData ? "Filtrar por Mês" : "Ver Tudo"}
-            </button>
-            <div className="hidden md:flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
-                <span className="font-bold text-slate-600">W</span>
+        <ErrorBoundary>
+          <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+            <div>
+              <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-1">
+                {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+              </p>
+              <div className="flex items-center gap-3">
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                  {activeTab === 'dashboard' && "Olá, Wesley!"}
+                  {activeTab === 'earnings' && "Ganhos do Dia"}
+                  {activeTab === 'expenses' && "Gastos do Dia"}
+                  {activeTab === 'bills' && "Suas Contas"}
+                  {activeTab === 'savings' && "Minhas Caixinhas"}
+                </h2>
+                <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                  {showAllData ? "Histórico Completo" : "Mês Atual"}
+                </span>
               </div>
             </div>
-          </div>
-        </header>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setShowAllData(!showAllData)}
+                className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm"
+              >
+                {showAllData ? "Filtrar por Mês" : "Ver Tudo"}
+              </button>
+              <div className="hidden md:flex items-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+                  <span className="font-bold text-slate-600">W</span>
+                </div>
+              </div>
+            </div>
+          </header>
 
-        {activeTab === 'dashboard' && renderDashboard()}
-        {activeTab === 'earnings' && (
-          <EarningsView 
-            entries={earningsEntries.filter(e => {
-              if (showAllData) return true;
-              if (typeof e.date !== 'string') return false;
-              const d = parseISO(e.date);
-              const now = new Date();
-              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            })} 
-            onAdd={addEarningsEntry} 
-            onDelete={deleteEarningsEntry} 
-          />
-        )}
-        {activeTab === 'expenses' && (
-          <ExpensesView 
-            expenses={dailyExpenses.filter(e => {
-              if (showAllData) return true;
-              if (typeof e.date !== 'string') return false;
-              const d = parseISO(e.date);
-              const now = new Date();
-              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            })} 
-            onAdd={addDailyExpense} 
-            onDelete={deleteDailyExpense} 
-          />
-        )}
-        {activeTab === 'bills' && (
-          <BillsView 
-            bills={bills.filter(b => {
-              if (showAllData) return true;
-              if (typeof b.dueDate !== 'string') return false;
-              const d = parseISO(b.dueDate);
-              const now = new Date();
-              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            })} 
-            onAdd={addBill} 
-            onToggle={toggleBillPaid} 
-            onDelete={deleteBill} 
-          />
-        )}
-        {activeTab === 'savings' && (
-          <SavingsView 
-            goals={savingsGoals} 
-            deposits={deposits.filter(d => {
-              if (showAllData) return true;
-              if (typeof d.date !== 'string') return false;
-              const date = parseISO(d.date);
-              const now = new Date();
-              return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-            })} 
-            onDeposit={addDeposit} 
-          />
-        )}
+          {activeTab === 'dashboard' && renderDashboard()}
+          {activeTab === 'earnings' && (
+            <EarningsView 
+              entries={earningsEntries.filter(e => {
+                if (showAllData) return true;
+                if (typeof e.date !== 'string') return false;
+                const d = safeParseISO(e.date);
+                const now = new Date();
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+              })} 
+              onAdd={addEarningsEntry} 
+              onDelete={deleteEarningsEntry} 
+            />
+          )}
+          {activeTab === 'expenses' && (
+            <ExpensesView 
+              expenses={dailyExpenses.filter(e => {
+                if (showAllData) return true;
+                if (typeof e.date !== 'string') return false;
+                const d = safeParseISO(e.date);
+                const now = new Date();
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+              })} 
+              onAdd={addDailyExpense} 
+              onDelete={deleteDailyExpense} 
+            />
+          )}
+          {activeTab === 'bills' && (
+            <BillsView 
+              bills={bills.filter(b => {
+                if (showAllData) return true;
+                if (typeof b.dueDate !== 'string') return false;
+                const d = safeParseISO(b.dueDate);
+                const now = new Date();
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+              })} 
+              onAdd={addBill} 
+              onToggle={toggleBillPaid} 
+              onDelete={deleteBill} 
+            />
+          )}
+          {activeTab === 'savings' && (
+            <SavingsView 
+              goals={savingsGoals} 
+              deposits={deposits.filter(d => {
+                if (showAllData) return true;
+                if (typeof d.date !== 'string') return false;
+                const date = safeParseISO(d.date);
+                const now = new Date();
+                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+              })} 
+              onDeposit={addDeposit} 
+            />
+          )}
+        </ErrorBoundary>
       </main>
     </div>
   );
