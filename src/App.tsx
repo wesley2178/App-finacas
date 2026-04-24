@@ -16,6 +16,8 @@ import {
   XCircle, 
   X,
   Edit2,
+  Menu,
+  MoreVertical,
   AlertCircle,
   TrendingUp,
   TrendingDown,
@@ -43,7 +45,7 @@ import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense } from './types';
 
 // --- Types ---
-type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report' | 'reminders';
+type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report';
 
 const CAIXINHA_CATEGORIES = ['rent', 'car', 'insurance', 'maintenance'];
 
@@ -207,12 +209,18 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
     date: format(new Date(), 'yyyy-MM-dd'), 
     uberEarnings: '', 
     pop99Earnings: '',
-    costs: '' 
+    kmDriven: '',
+    extraCosts: '' 
   });
 
   const uberNum = Number(formData.uberEarnings || 0);
   const pop99Num = Number(formData.pop99Earnings || 0);
+  const kmNum = Number(formData.kmDriven || 0);
+  const extraCostsNum = Number(formData.extraCosts || 0);
+  
+  const fuelCost = kmNum * 0.20;
   const totalEarnings = uberNum + pop99Num;
+  const totalCosts = fuelCost + extraCostsNum;
 
   const getComparison = () => {
     if (uberNum === 0 && pop99Num === 0) return null;
@@ -231,9 +239,16 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
       uberEarnings: uberNum,
       pop99Earnings: pop99Num,
       totalEarnings: totalEarnings,
-      costs: Number(formData.costs || 0)
+      costs: totalCosts,
+      kmDriven: kmNum
     });
-    setFormData({ date: format(new Date(), 'yyyy-MM-dd'), uberEarnings: '', pop99Earnings: '', costs: '' });
+    setFormData({ 
+      date: format(new Date(), 'yyyy-MM-dd'), 
+      uberEarnings: '', 
+      pop99Earnings: '', 
+      kmDriven: '',
+      extraCosts: '' 
+    });
   };
 
   return (
@@ -250,7 +265,7 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
             <Input 
               label="Data" 
               type="date" 
@@ -272,22 +287,39 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, pop99Earnings: e.target.value })} 
             />
             <Input 
-              label="Custos (Combustível, etc)" 
+              label="KM Rodado" 
+              type="number" 
+              placeholder="0"
+              value={formData.kmDriven} 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, kmDriven: e.target.value })} 
+            />
+            <Input 
+              label="Outros Custos (R$)" 
               type="number" 
               placeholder="0,00"
-              value={formData.costs} 
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, costs: e.target.value })} 
+              value={formData.extraCosts} 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, extraCosts: e.target.value })} 
             />
           </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-between p-4 bg-slate-900 rounded-2xl text-white gap-4">
-            <div className="text-center md:text-left">
-              <p className="text-xs text-white/50 uppercase font-bold tracking-wider">Total Integral do Dia</p>
-              <p className="text-3xl font-black">R$ {formatCurrency(totalEarnings, { minimumFractionDigits: 2 })}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Custo Combustível (R$ 0,20/km)</p>
+              <p className="text-xl font-black text-red-500">R$ {formatCurrency(fuelCost, { minimumFractionDigits: 2 })}</p>
             </div>
-            <Button type="submit" className="w-full md:w-auto bg-white text-slate-900 hover:bg-slate-100 h-14 px-8 text-lg">
-              <Plus className="w-5 h-5" /> Salvar no Sistema
-            </Button>
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Custo Total</p>
+              <p className="text-xl font-black text-slate-900">R$ {formatCurrency(totalCosts, { minimumFractionDigits: 2 })}</p>
+            </div>
+            <div className="p-4 bg-slate-900 rounded-2xl text-white flex items-center justify-between">
+              <div>
+                <p className="text-[10px] text-white/50 uppercase font-bold tracking-widest mb-1">Ganhos Totais</p>
+                <p className="text-xl font-black">R$ {formatCurrency(totalEarnings, { minimumFractionDigits: 2 })}</p>
+              </div>
+              <Button type="submit" className="bg-white text-slate-900 hover:bg-slate-100 h-10">
+                <Plus className="w-4 h-4" /> Salvar
+              </Button>
+            </div>
           </div>
         </form>
       </Card>
@@ -300,7 +332,8 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Uber</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">99</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">KM Rodado</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">TotalBruto</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Custos</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Líquido</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
@@ -317,6 +350,9 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
                   </td>
                   <td className="px-6 py-4 text-amber-600 text-sm">
                     R$ {formatCurrency(entry.pop99Earnings)}
+                  </td>
+                  <td className="px-6 py-4 text-slate-400 text-sm">
+                    {entry.kmDriven || 0} km
                   </td>
                   <td className="px-6 py-4 font-bold text-slate-900">
                     R$ {formatCurrency(entry.totalEarnings)}
@@ -420,26 +456,27 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
               <button 
                 type="button"
                 onClick={() => setShowAddCategory(!showAddCategory)}
-                className="text-slate-400 hover:text-slate-900 transition-colors"
+                className="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-900 transition-colors flex items-center gap-1"
               >
-                <Plus className="w-3 h-3" />
+                <Plus className="w-3 h-3" /> Nova Categoria
               </button>
             </div>
             {showAddCategory ? (
               <div className="flex gap-2">
                 <input 
                   type="text"
-                  placeholder="Nova..."
+                  placeholder="Nome da categoria..."
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
-                  className="flex-1 px-2 py-1 text-xs rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
+                  autoFocus
                 />
                 <button 
                   type="button"
                   onClick={handleAddCategory}
-                  className="px-2 py-1 bg-slate-900 text-white text-[10px] rounded font-bold"
+                  className="px-4 py-2 bg-slate-900 text-white text-xs rounded-lg font-bold hover:bg-slate-800 transition-colors"
                 >
-                  OK
+                  Criar
                 </button>
               </div>
             ) : (
@@ -586,7 +623,16 @@ const SavingsView = ({ goals, deposits, onDeposit, onDeleteDeposit, onUpdateDepo
               <Card key={goal.id} className="p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h4 className="text-xl font-bold text-slate-900">{goal.name}</h4>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-xl font-bold text-slate-900">{goal.name}</h4>
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                        {goal.category === 'rent' ? 'Aluguel' : 
+                         goal.category === 'car' ? 'Carro' : 
+                         goal.category === 'insurance' ? 'Seguro' : 
+                         goal.category === 'maintenance' ? 'Manutenção' : 
+                         goal.category === 'other' ? 'Outros' : goal.category}
+                      </span>
+                    </div>
                     <p className="text-sm text-slate-500">Meta: R$ {formatCurrency(goal.value)}</p>
                   </div>
                   <div className="text-right">
@@ -679,7 +725,7 @@ const SavingsView = ({ goals, deposits, onDeposit, onDeleteDeposit, onUpdateDepo
           {goals.length === 0 && (
             <Card className="p-12 flex flex-col items-center justify-center text-slate-400 border-dashed border-2">
               <PiggyBank className="w-12 h-12 mb-4 opacity-20" />
-              <p className="text-center">Adicione contas nas categorias Aluguel, Carro ou Seguro para criar caixinhas automáticas.</p>
+              <p className="text-center">Adicione contas na aba de Contas para que elas apareçam aqui como metas diárias.</p>
             </Card>
           )}
         </div>
@@ -777,17 +823,21 @@ const SavingsView = ({ goals, deposits, onDeposit, onDeleteDeposit, onUpdateDepo
   );
 };
 
-const ExpensesView = ({ expenses, onAdd, onDelete }: {
+const ExpensesView = ({ expenses, onAdd, onDelete, customCategories, onAddCategory }: {
   expenses: DailyExpense[];
   onAdd: (expense: Omit<DailyExpense, 'id'>) => void;
   onDelete: (id: string) => void;
+  customCategories: string[];
+  onAddCategory: (name: string) => void;
 }) => {
   const [formData, setFormData] = useState({ 
     description: '', 
     value: '', 
     date: format(new Date(), 'yyyy-MM-dd'),
-    category: 'food' as DailyExpense['category']
+    category: 'food'
   });
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -804,6 +854,14 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
       date: format(new Date(), 'yyyy-MM-dd'),
       category: 'food'
     });
+  };
+
+  const handleAddCategory = () => {
+    if (newCategoryName.trim()) {
+      onAddCategory(newCategoryName.trim());
+      setNewCategoryName('');
+      setShowAddCategory(false);
+    }
   };
 
   return (
@@ -825,17 +883,49 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, value: e.target.value })} 
           />
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700">Categoria</label>
-            <select 
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value as DailyExpense['category'] })}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
-            >
-              <option value="food">Comida</option>
-              <option value="delivery">Delivery</option>
-              <option value="transport">Transporte</option>
-              <option value="other">Outros</option>
-            </select>
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium text-slate-700">Categoria</label>
+              <button 
+                type="button"
+                onClick={() => setShowAddCategory(!showAddCategory)}
+                className="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-900 transition-colors flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Nova Categoria
+              </button>
+            </div>
+            {showAddCategory ? (
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="Nova..."
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all font-sans"
+                  autoFocus
+                />
+                <button 
+                  type="button"
+                  onClick={handleAddCategory}
+                  className="px-4 py-2 bg-slate-900 text-white text-xs rounded-lg font-bold hover:bg-slate-800 transition-colors"
+                >
+                  Criar
+                </button>
+              </div>
+            ) : (
+              <select 
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
+              >
+                <option value="food">Comida</option>
+                <option value="delivery">Delivery</option>
+                <option value="transport">Transporte</option>
+                <option value="other">Outros</option>
+                {customCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            )}
           </div>
           <Button type="submit" className="w-full">
             <Plus className="w-4 h-4" /> Registrar
@@ -866,7 +956,10 @@ const ExpensesView = ({ expenses, onAdd, onDelete }: {
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
-                      {expense.category === 'food' ? 'Comida' : expense.category === 'delivery' ? 'Delivery' : expense.category === 'transport' ? 'Transporte' : 'Outros'}
+                      {expense.category === 'food' ? 'Comida' : 
+                       expense.category === 'delivery' ? 'Delivery' : 
+                       expense.category === 'transport' ? 'Transporte' : 
+                       expense.category === 'other' ? 'Outros' : expense.category}
                     </span>
                   </td>
                   <td className="px-6 py-4 font-bold text-red-500">
@@ -973,113 +1066,14 @@ const ReportView = ({ earnings, expenses, bills }: {
   );
 };
 
-const RemindersView = ({ bills, onAdd, onDelete }: {
-  bills: Bill[];
-  onAdd: (bill: Omit<Bill, 'id' | 'isPaid'>) => void;
-  onDelete: (id: string) => void;
-}) => {
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    value: '', 
-    dueDate: format(new Date(), 'yyyy-MM-dd'),
-    category: 'maintenance' as Bill['category']
-  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name || !formData.value) return;
-    onAdd({
-      name: formData.name,
-      value: Number(formData.value),
-      dueDate: formData.dueDate,
-      category: formData.category,
-      isRecurring: true
-    });
-    setFormData({ 
-      name: '', 
-      value: '', 
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      category: 'maintenance'
-    });
-  };
-
-  const reminders = bills.filter(b => ['maintenance', 'fuel', 'insurance'].includes(b.category));
-
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Card className="p-6">
-        <h3 className="text-lg font-bold mb-4">Novo Lembrete de Manutenção / Veículo</h3>
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-          <Input 
-            label="O que lembrar?" 
-            placeholder="Ex: Troca de Óleo, Seguro..."
-            value={formData.name} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })} 
-          />
-          <Input 
-            label="Valor Estimado (R$)" 
-            type="number" 
-            placeholder="0,00"
-            value={formData.value} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, value: e.target.value })} 
-          />
-          <Input 
-            label="Data Prevista" 
-            type="date" 
-            value={formData.dueDate} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })} 
-          />
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700">Categoria</label>
-            <select 
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value as Bill['category'] })}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all bg-slate-50/50"
-            >
-              <option value="maintenance">Manutenção</option>
-              <option value="fuel">Combustível</option>
-              <option value="insurance">Seguro</option>
-            </select>
-          </div>
-          <Button type="submit" className="w-full lg:col-span-4">
-            <Plus className="w-4 h-4" /> Adicionar Lembrete
-          </Button>
-        </form>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {reminders.map(rem => (
-          <Card key={rem.id} className="p-5 border-l-4 border-l-amber-500">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <h4 className="font-bold text-slate-900">{rem.name}</h4>
-                <p className="text-xs text-slate-500">Previsto para {safeFormat(rem.dueDate, 'dd/MM/yyyy')}</p>
-              </div>
-              <button 
-                onClick={() => onDelete(rem.id)}
-                className="text-slate-400 hover:text-red-500 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex items-center justify-between mt-4">
-              <span className="text-lg font-bold text-slate-900">R$ {formatCurrency(rem.value)}</span>
-              <span className="text-[10px] font-bold uppercase px-2 py-1 bg-amber-50 text-amber-600 rounded">
-                {rem.category === 'maintenance' ? 'Manutenção' : rem.category === 'fuel' ? 'Combustível' : 'Seguro'}
-              </span>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 // --- Main App ---
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showAllData, setShowAllData] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // State Persistence
   const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>(() => {
@@ -1093,7 +1087,8 @@ export default function App() {
         uberEarnings: entry.uberEarnings ?? entry.earnings ?? 0,
         pop99Earnings: entry.pop99Earnings ?? 0,
         totalEarnings: entry.totalEarnings ?? entry.earnings ?? 0,
-        costs: entry.costs ?? 0
+        costs: entry.costs ?? 0,
+        kmDriven: entry.kmDriven ?? 0
       }));
     } catch (e) {
       return [];
@@ -1144,6 +1139,17 @@ export default function App() {
     }
   });
 
+  const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('uber_expense_custom_categories');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   useEffect(() => {
     localStorage.setItem('uber_entries', JSON.stringify(earningsEntries));
   }, [earningsEntries]);
@@ -1163,6 +1169,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('daily_expenses', JSON.stringify(dailyExpenses));
   }, [dailyExpenses]);
+
+  useEffect(() => {
+    localStorage.setItem('uber_expense_custom_categories', JSON.stringify(customExpenseCategories));
+  }, [customExpenseCategories]);
 
   // --- Handlers ---
 
@@ -1288,7 +1298,7 @@ export default function App() {
   const savingsGoals = useMemo(() => {
     try {
       return bills
-        .filter(b => !b.isPaid && CAIXINHA_CATEGORIES.includes(b.category))
+        .filter(b => !b.isPaid)
         .map(bill => {
           const today = new Date();
           const dueDate = safeParseISO(bill.dueDate);
@@ -1495,152 +1505,214 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Sidebar / Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 md:top-0 md:bottom-auto md:flex-col md:w-64 md:h-screen md:border-r md:border-t-0 z-50">
-        <div className="hidden md:flex items-center gap-3 mb-12 px-6 py-8">
-          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
-            <Car className="text-white w-6 h-6" />
+      {/* Side Drawer (Mobile/Desktop) */}
+      <div className={cn(
+        "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] transition-opacity duration-300",
+        isMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+      )} onClick={() => setIsMenuOpen(false)} />
+      
+      <aside className={cn(
+        "fixed top-0 left-0 bottom-0 w-72 bg-white z-[101] shadow-2xl transition-transform duration-300 ease-out flex flex-col md:translate-x-0",
+        isMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
+              <Car className="text-white w-5 h-5" />
+            </div>
+            <h1 className="text-lg font-black tracking-tighter italic">UBER<span className="text-slate-400">FINANÇAS</span></h1>
           </div>
-          <h1 className="text-xl font-black tracking-tighter italic">UBER<span className="text-slate-400">FINANÇAS</span></h1>
+          <button onClick={() => setIsMenuOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-slate-900">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="flex overflow-x-auto no-scrollbar px-4 py-2 md:px-2 md:py-0 md:flex-col md:gap-2">
+        <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           {( [
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Início' },
-            { id: 'earnings', icon: Car, label: 'Ganhos' },
-            { id: 'expenses', icon: ShoppingBag, label: 'Gastos' },
-            { id: 'bills', icon: Receipt, label: 'Contas' },
-            { id: 'savings', icon: PiggyBank, label: 'Caixinha' },
-            { id: 'reminders', icon: Bell, label: 'Lembretes' },
-            { id: 'report', icon: FileText, label: 'Relatório' },
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Painel Geral' },
+            { id: 'earnings', icon: Car, label: 'Registro de Ganhos' },
+            { id: 'expenses', icon: ShoppingBag, label: 'Controle de Gastos' },
+            { id: 'bills', icon: Receipt, label: 'Gestão de Contas' },
+            { id: 'savings', icon: PiggyBank, label: 'Minhas Caixinhas' },
+            { id: 'report', icon: FileText, label: 'Relatórios' },
           ] as const).map(item => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                setActiveTab(item.id);
+                setIsMenuOpen(false);
+              }}
               className={cn(
-                "flex flex-col md:flex-row items-center gap-1 md:gap-3 px-4 py-2 rounded-xl transition-all flex-shrink-0",
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
                 activeTab === item.id 
-                  ? "text-slate-900 md:bg-slate-100 font-bold" 
-                  : "text-slate-400 hover:text-slate-600 md:hover:bg-slate-50"
+                  ? "bg-slate-900 text-white font-bold shadow-lg shadow-slate-900/20" 
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-slate-900" : "text-slate-400")} />
-              <span className="text-[10px] md:text-sm font-medium whitespace-nowrap">{item.label}</span>
+              <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-white" : "text-slate-400")} />
+              <span className="font-medium">{item.label}</span>
+              {activeTab === item.id && <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
             </button>
           ))}
-        </div>
-      </nav>
+        </nav>
 
-      {/* Main Content */}
-      <main className="pb-28 pt-4 px-4 md:pl-72 md:pr-8 md:pt-8 max-w-7xl mx-auto">
-        <ErrorBoundary>
-          <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">W</div>
             <div>
-              <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-1">
-                {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-              </p>
-              <div className="flex items-center gap-3">
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-                  {activeTab === 'dashboard' && "Olá, Wesley!"}
-                  {activeTab === 'earnings' && "Ganhos do Dia"}
-                  {activeTab === 'expenses' && "Gastos do Dia"}
-                  {activeTab === 'bills' && "Suas Contas"}
-                  {activeTab === 'savings' && "Minhas Caixinhas"}
-                </h2>
-                <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg uppercase tracking-wider">
-                  {showAllData ? "Histórico Completo" : "Mês Atual"}
-                </span>
-              </div>
+              <p className="text-sm font-bold text-slate-900">Wesley</p>
+              <p className="text-xs text-slate-500">Motorista Uber</p>
             </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="md:pl-72 min-h-screen flex flex-col">
+        {/* Header */}
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 py-4">
+          <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => setShowAllData(!showAllData)}
-                className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm"
+                onClick={() => setIsMenuOpen(true)}
+                className="p-2 -ml-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+                aria-label="Abrir menu"
               >
-                {showAllData ? "Filtrar por Mês" : "Ver Tudo"}
+                <MoreVertical className="w-6 h-6" />
               </button>
-              <div className="hidden md:flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
-                  <span className="font-bold text-slate-600">W</span>
-                </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none mb-1">
+                  {activeTab === 'dashboard' && "Olá, Wesley!"}
+                  {activeTab === 'earnings' && "Meus Ganhos"}
+                  {activeTab === 'expenses' && "Meus Gastos"}
+                  {activeTab === 'bills' && "Minhas Contas"}
+                  {activeTab === 'savings' && "Minhas Caixinhas"}
+                  {activeTab === 'report' && "Relatório"}
+                </h2>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">
+                  {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                </p>
               </div>
             </div>
-          </header>
 
-          {activeTab === 'dashboard' && renderDashboard()}
-          {activeTab === 'earnings' && (
-            <EarningsView 
-              entries={earningsEntries.filter(e => {
-                if (showAllData) return true;
-                if (typeof e.date !== 'string') return false;
-                const d = safeParseISO(e.date);
-                const now = new Date();
-                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-              })} 
-              onAdd={addEarningsEntry} 
-              onDelete={deleteEarningsEntry} 
-            />
-          )}
-          {activeTab === 'expenses' && (
-            <ExpensesView 
-              expenses={dailyExpenses.filter(e => {
-                if (showAllData) return true;
-                if (typeof e.date !== 'string') return false;
-                const d = safeParseISO(e.date);
-                const now = new Date();
-                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-              })} 
-              onAdd={addDailyExpense} 
-              onDelete={deleteDailyExpense} 
-            />
-          )}
-          {activeTab === 'bills' && (
-            <BillsView 
-              bills={bills.filter(b => {
-                if (showAllData) return true;
-                if (typeof b.dueDate !== 'string') return false;
-                const d = safeParseISO(b.dueDate);
-                const now = new Date();
-                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-              })} 
-              onAdd={addBill} 
-              onToggle={toggleBillPaid} 
-              onDelete={deleteBill} 
-              customCategories={customCategories}
-              onAddCategory={(name) => setCustomCategories(prev => [...prev, name])}
-            />
-          )}
-          {activeTab === 'savings' && (
-            <SavingsView 
-              goals={savingsGoals} 
-              deposits={deposits.filter(d => {
-                if (showAllData) return true;
-                if (typeof d.date !== 'string') return false;
-                const date = safeParseISO(d.date);
-                const now = new Date();
-                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-              })} 
-              onDeposit={addDeposit} 
-              onDeleteDeposit={deleteDeposit}
-              onUpdateDeposit={updateDeposit}
-            />
-          )}
-          {activeTab === 'reminders' && (
-            <RemindersView 
-              bills={bills} 
-              onAdd={addBill} 
-              onDelete={deleteBill} 
-            />
-          )}
-          {activeTab === 'report' && (
-            <ReportView 
-              earnings={earningsEntries} 
-              expenses={dailyExpenses} 
-              bills={bills} 
-            />
-          )}
-        </ErrorBoundary>
-      </main>
+            <div className="flex items-center gap-3">
+              <span className={cn(
+                "hidden sm:flex text-[9px] font-black uppercase px-2 py-1 rounded-md tracking-tighter",
+                showAllData ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"
+              )}>
+                {showAllData ? "Histórico Global" : "Mês Vigente"}
+              </span>
+              <button 
+                onClick={() => setShowAllData(!showAllData)}
+                className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                <CalendarIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 pb-32 pt-6 px-4 md:px-8 max-w-6xl mx-auto w-full">
+          <ErrorBoundary>
+            {activeTab === 'dashboard' && renderDashboard()}
+            {activeTab === 'earnings' && (
+              <EarningsView 
+                entries={earningsEntries.filter(e => {
+                  if (showAllData) return true;
+                  if (typeof e.date !== 'string') return false;
+                  const d = safeParseISO(e.date);
+                  const now = new Date();
+                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                })} 
+                onAdd={addEarningsEntry} 
+                onDelete={deleteEarningsEntry} 
+              />
+            )}
+            {activeTab === 'expenses' && (
+              <ExpensesView 
+                expenses={dailyExpenses.filter(e => {
+                  if (showAllData) return true;
+                  if (typeof e.date !== 'string') return false;
+                  const d = safeParseISO(e.date);
+                  const now = new Date();
+                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                })} 
+                onAdd={addDailyExpense} 
+                onDelete={deleteDailyExpense} 
+                customCategories={customExpenseCategories}
+                onAddCategory={(name) => setCustomExpenseCategories(prev => [...prev, name])}
+              />
+            )}
+            {activeTab === 'bills' && (
+              <BillsView 
+                bills={bills.filter(b => {
+                  if (showAllData) return true;
+                  if (typeof b.dueDate !== 'string') return false;
+                  const d = safeParseISO(b.dueDate);
+                  const now = new Date();
+                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                })} 
+                onAdd={addBill} 
+                onToggle={toggleBillPaid} 
+                onDelete={deleteBill} 
+                customCategories={customCategories}
+                onAddCategory={(name) => setCustomCategories(prev => [...prev, name])}
+              />
+            )}
+            {activeTab === 'savings' && (
+              <SavingsView 
+                goals={savingsGoals} 
+                deposits={deposits.filter(d => {
+                  if (showAllData) return true;
+                  if (typeof d.date !== 'string') return false;
+                  const date = safeParseISO(d.date);
+                  const now = new Date();
+                  return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                })} 
+                onDeposit={addDeposit} 
+                onDeleteDeposit={deleteDeposit}
+                onUpdateDeposit={updateDeposit}
+              />
+            )}
+
+            {activeTab === 'report' && (
+              <ReportView 
+                earnings={earningsEntries} 
+                expenses={dailyExpenses} 
+                bills={bills} 
+              />
+            )}
+          </ErrorBoundary>
+        </main>
+      </div>
+
+      {/* Bottom Navigation (Mobile Dock) */}
+      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-sm h-16 bg-slate-900/95 backdrop-blur-lg border border-white/10 rounded-2xl shadow-2xl z-50 px-4 flex items-center justify-between">
+        {( [
+          { id: 'dashboard', icon: LayoutDashboard },
+          { id: 'earnings', icon: Car },
+          { id: 'expenses', icon: ShoppingBag },
+          { id: 'bills', icon: Receipt },
+          { id: 'savings', icon: PiggyBank },
+        ] as const).map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={cn(
+              "relative p-3 rounded-xl transition-all duration-300",
+              activeTab === item.id 
+                ? "text-white scale-110 -translate-y-1" 
+                : "text-slate-500 hover:text-white"
+            )}
+          >
+            <item.icon className="w-6 h-6" />
+            {activeTab === item.id && (
+              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white]" />
+            )}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

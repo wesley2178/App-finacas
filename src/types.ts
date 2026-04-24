@@ -5,6 +5,7 @@ export interface EarningsEntry {
   pop99Earnings: number;
   totalEarnings: number;
   costs: number;
+  kmDriven: number;
 }
 
 export interface Bill {
@@ -29,5 +30,5 @@ export interface DailyExpense {
   description: string;
   value: number;
   date: string;
-  category: 'food' | 'delivery' | 'transport' | 'other';
+  category: string;
 }
