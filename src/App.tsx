@@ -1569,178 +1569,374 @@ export default function App() {
   
   // --- Renderers ---
 
-  const renderDashboard = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card 
-          className="p-6 bg-slate-900 text-white border-none cursor-pointer hover:bg-slate-800 transition-colors"
-          onClick={() => setActiveTab('earnings')}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-white/10 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
-            </div>
-            <span className="text-xs font-medium text-white/50 uppercase tracking-wider">Ganhos Uber (Mês)</span>
-          </div>
-          <h3 className="text-3xl font-bold">R$ {formatCurrency(monthlyStats.totalEarnings)}</h3>
-          <p className="text-sm text-white/60 mt-2">Líquido: R$ {formatCurrency(monthlyStats.netEarnings)}</p>
-        </Card>
+  const renderDashboard = () => {
+    const totalUber = earningsEntries.reduce((acc, curr) => acc + curr.uberEarnings, 0);
+    const total99 = earningsEntries.reduce((acc, curr) => acc + curr.pop99Earnings, 0);
+    const totalOther = earningsEntries.reduce((acc, curr) => acc + (curr.otherEarnings || 0), 0);
+    const netEarnings = monthlyStats.netEarnings;
 
-        <Card 
-          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
-          onClick={() => setActiveTab('expenses')}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-red-50 rounded-lg">
-              <TrendingDown className="w-5 h-5 text-red-500" />
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* Main Financial Pulse */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <Card className="lg:col-span-2 p-8 bg-slate-900 border-none shadow-xl shadow-slate-900/20 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
+              <TrendingUp className="w-24 h-24 text-white" />
             </div>
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Gastos Diários (Mês)</span>
-          </div>
-          <h3 className="text-3xl font-bold text-slate-900">R$ {formatCurrency(monthlyStats.totalDailyExpenses)}</h3>
-          <p className="text-sm text-slate-500 mt-2">Lanches, Delivery, etc</p>
-        </Card>
-
-        <Card 
-          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
-          onClick={() => setActiveTab('bills')}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-slate-100 rounded-lg">
-              <Receipt className="w-5 h-5 text-slate-500" />
-            </div>
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Contas Totais</span>
-          </div>
-          <h3 className="text-3xl font-bold text-slate-900">R$ {formatCurrency(monthlyStats.totalBills)}</h3>
-          <div className="w-full bg-slate-100 h-2 rounded-full mt-4 overflow-hidden">
-            <div 
-              className="bg-slate-900 h-full transition-all duration-1000" 
-              style={{ width: `${(monthlyStats.paidBills / (monthlyStats.totalBills || 1)) * 100}%` }}
-            />
-          </div>
-          <p className="text-xs text-slate-500 mt-2">Pagas: R$ {formatCurrency(monthlyStats.paidBills)}</p>
-        </Card>
-
-        <Card 
-          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
-          onClick={() => setActiveTab('savings')}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-amber-50 rounded-lg">
-              <PiggyBank className="w-5 h-5 text-amber-500" />
-            </div>
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Reserva Diária</span>
-          </div>
-          <h3 className="text-3xl font-bold text-slate-900">
-            R$ {formatCurrency(savingsGoals.reduce((acc, curr) => acc + curr.dailyNeeded, 0), { minimumFractionDigits: 2 })}
-          </h3>
-          <p className="text-sm text-slate-500 mt-2">Valor total a guardar hoje</p>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-slate-400" />
-            Desempenho (Últimos 7 dias)
-          </h4>
-          <div className="h-[300px] w-full">
-            {earningsEntries.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={earningsEntries
-                  .filter(e => {
-                    if (typeof e.date !== 'string') return false;
-                    const d = safeParseISO(e.date);
-                    const now = new Date();
-                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                  })
-                  .slice(0, 7)
-                  .reverse()
-                }>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(val) => safeFormat(val, 'dd/MM')}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 12 }}
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 12 }}
-                  />
-                  <Tooltip 
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <Bar dataKey="totalEarnings" fill="#0f172a" radius={[4, 4, 0, 0]} name="Ganhos" />
-                  <Bar dataKey="costs" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Custos" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
-                <Car className="w-8 h-8 opacity-20" />
-                <p className="text-sm">Nenhum dado para exibir no gráfico</p>
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Líquido Mensal</p>
               </div>
-            )}
-          </div>
-        </Card>
+              <h3 className="text-5xl font-black text-white tracking-tight mb-2">
+                R$ {formatCurrency(netEarnings)}
+              </h3>
+              <p className="text-sm text-slate-400">Restante após todos os custos operacionais e gastos</p>
+              
+              <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-white/10">
+                <div>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Ganhos Brutos</p>
+                  <p className="text-lg font-bold text-white">R$ {formatCurrency(monthlyStats.totalEarnings)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Custos Totais</p>
+                  <p className="text-lg font-bold text-red-400">R$ {formatCurrency(monthlyStats.totalEarnings - netEarnings)}</p>
+                </div>
+              </div>
+            </div>
+          </Card>
 
-        <Card 
-          className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
-          onClick={() => setActiveTab('bills')}
-        >
-          <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <Bell className="w-5 h-5 text-slate-400" />
-            Próximos Vencimentos
-          </h4>
-          <div className="space-y-4">
-            {bills
-              .filter(b => {
-                if (typeof b.dueDate !== 'string') return false;
-                const d = safeParseISO(b.dueDate);
-                const now = new Date();
-                return !b.isPaid && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-              })
-              .sort((a, b) => safeParseISO(a.dueDate).getTime() - safeParseISO(b.dueDate).getTime())
-              .slice(0, 4)
-              .map(bill => {
-                const days = differenceInDays(safeParseISO(bill.dueDate), new Date());
-                return (
-                  <div key={bill.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "w-2 h-2 rounded-full",
-                        days < 0 ? "bg-red-500 animate-pulse" : days <= 3 ? "bg-amber-500" : "bg-slate-300"
-                      )} />
-                      <div>
-                        <p className="font-medium text-slate-900">{bill.name}</p>
-                        <p className="text-xs text-slate-500">{safeFormat(bill.dueDate, "dd 'de' MMMM")}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-slate-900">R$ {formatCurrency(bill.value)}</p>
-                      <p className={cn(
-                        "text-[10px] font-bold uppercase tracking-tighter",
-                        days < 0 ? "text-red-500" : "text-slate-400"
-                      )}>
-                        {days < 0 ? `Atrasado ${Math.abs(days)}d` : days === 0 ? "Vence hoje" : `Em ${days} dias`}
-                      </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6 lg:col-span-2">
+            <Card className="p-6 flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer group" onClick={() => setActiveTab('earnings')}>
+              <div className="flex justify-between items-start">
+                <div className="p-3 bg-slate-100 rounded-2xl group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                  <Car className="w-6 h-6" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Top App</p>
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter",
+                    totalUber >= total99 ? "bg-slate-900 text-white" : "bg-amber-100 text-amber-600"
+                  )}>
+                    {totalUber >= total99 ? "Uber Driver" : "99 Pop"}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p className="text-2xl font-black text-slate-900 mt-4">
+                  R$ {formatCurrency(Math.max(totalUber, total99))}
+                </p>
+                <p className="text-xs text-slate-500">Ganhos no aplicativo principal</p>
+              </div>
+            </Card>
+
+            <Card className="p-6 flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer group" onClick={() => setActiveTab('savings')}>
+              <div className="flex justify-between items-start">
+                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                  <PiggyBank className="w-6 h-6" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Meta Diária</p>
+                  <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                    Em Dia
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p className="text-2xl font-black text-slate-900 mt-4">
+                  R$ {formatCurrency(savingsGoals.reduce((acc, curr) => acc + curr.dailyNeeded, 0))}
+                </p>
+                <p className="text-xs text-slate-500">Reserva sugerida para hoje</p>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Relatório de Equilíbrio Mensal (Ganhos vs Gastos) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+          <Card className="p-6 border-emerald-100 bg-emerald-50/20">
+            <h4 className="text-sm font-bold text-emerald-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> Entradas (Receitas)
+            </h4>
+
+            {/* Comparativo Visual Uber vs 99 */}
+            <div className="flex h-3 w-full bg-emerald-100/50 rounded-full overflow-hidden mb-6">
+              <div 
+                style={{ width: `${(totalUber / (monthlyStats.totalEarnings || 1)) * 100}%` }}
+                className="bg-slate-900 h-full transition-all duration-1000"
+              />
+              <div 
+                style={{ width: `${(total99 / (monthlyStats.totalEarnings || 1)) * 100}%` }}
+                className="bg-amber-500 h-full transition-all duration-1000"
+              />
+              <div 
+                style={{ width: `${(totalOther / (monthlyStats.totalEarnings || 1)) * 100}%` }}
+                className="bg-blue-500 h-full transition-all duration-1000"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center py-2 border-b border-emerald-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-slate-900" />
+                  <span className="text-sm text-slate-600 font-medium">Uber Driver</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-black text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-100">
+                    {((totalUber / (monthlyStats.totalEarnings || 1)) * 100).toFixed(0)}%
+                  </span>
+                  <span className="font-bold text-slate-900">R$ {formatCurrency(totalUber)}</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-emerald-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-sm text-slate-600 font-medium">99 Pop</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-black text-amber-600 bg-white px-1.5 py-0.5 rounded border border-amber-100">
+                    {((total99 / (monthlyStats.totalEarnings || 1)) * 100).toFixed(0)}%
+                  </span>
+                  <span className="font-bold text-slate-900">R$ {formatCurrency(total99)}</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-emerald-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span className="text-sm text-slate-600 font-medium">Outros Ganhos</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-black text-blue-600 bg-white px-1.5 py-0.5 rounded border border-blue-100">
+                    {((totalOther / (monthlyStats.totalEarnings || 1)) * 100).toFixed(0)}%
+                  </span>
+                  <span className="font-bold text-slate-900">R$ {formatCurrency(totalOther)}</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-sm font-black text-emerald-700">Total Bruto</span>
+                <span className="text-lg font-black text-emerald-700">R$ {formatCurrency(monthlyStats.totalEarnings)}</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border-red-100 bg-red-50/20">
+            <h4 className="text-sm font-bold text-red-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <TrendingDown className="w-4 h-4" /> Saídas (Custos & Gastos)
+            </h4>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center py-2 border-b border-red-100">
+                <span className="text-sm text-slate-600 font-medium">Operacional (Combustível/Extras)</span>
+                <span className="font-bold text-slate-900">R$ {formatCurrency(monthlyStats.totalCosts)}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-red-100">
+                <span className="text-sm text-slate-600 font-medium">Contas Fixas</span>
+                <span className="font-bold text-slate-900">R$ {formatCurrency(monthlyStats.totalBills)}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-red-100">
+                <span className="text-sm text-slate-600 font-medium">Gastos Diários (Rua)</span>
+                <span className="font-bold text-slate-900">R$ {formatCurrency(monthlyStats.totalDailyExpenses)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-sm font-black text-red-700">Total de Despesas</span>
+                <span className="text-lg font-black text-red-700">R$ {formatCurrency(monthlyStats.totalCosts + monthlyStats.totalBills + monthlyStats.totalDailyExpenses)}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex flex-wrap gap-4">
+          <button 
+            onClick={() => setActiveTab('earnings')}
+            className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group"
+          >
+            <div className="p-2 bg-slate-900 text-white rounded-lg">
+              <Plus className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-bold text-slate-900">Novo Ganho</p>
+              <p className="text-[10px] text-slate-500">Registrar dia trabalhado</p>
+            </div>
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('expenses')}
+            className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group"
+          >
+            <div className="p-2 bg-orange-100 text-orange-600 rounded-lg group-hover:bg-orange-500 group-hover:text-white transition-colors">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-bold text-slate-900">Novo Gasto</p>
+              <p className="text-[10px] text-slate-500">Lanches e extras</p>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('report')}
+            className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group"
+          >
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-500 group-hover:text-white transition-colors">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-bold text-slate-900">Ver Relatório</p>
+              <p className="text-[10px] text-slate-500">Análise completa do mês</p>
+            </div>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Charts Section */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="p-6">
+                <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-slate-400" />
+                  Status das Contas Fixas
+                </h4>
+                <div className="flex items-center gap-6">
+                  <div className="relative w-24 h-24">
+                    <svg className="w-full h-full" viewBox="0 0 36 36">
+                      <path
+                        className="text-slate-100"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-slate-900"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        fill="none"
+                        strokeDasharray={`${(monthlyStats.paidBills / (monthlyStats.totalBills || 1)) * 100}, 100`}
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-lg font-black text-slate-900">
+                        {Math.round((monthlyStats.paidBills / (monthlyStats.totalBills || 1)) * 100)}%
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            {bills.filter(b => !b.isPaid).length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                <CheckCircle2 className="w-12 h-12 mb-2 opacity-20" />
-                <p>Tudo em dia!</p>
-              </div>
-            )}
+                  <div>
+                    <p className="text-xs font-bold text-emerald-600 uppercase mb-1">R$ {formatCurrency(monthlyStats.paidBills)} pagas</p>
+                    <p className="text-xs font-bold text-red-500 uppercase">R$ {formatCurrency(monthlyStats.totalBills - monthlyStats.paidBills)} pendentes</p>
+                    <button 
+                      onClick={() => setActiveTab('bills')}
+                      className="mt-3 text-[10px] font-black text-slate-900 uppercase flex items-center gap-1 hover:underline"
+                    >
+                      Ver todas <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5 text-slate-400" />
+                  Gasto Diário Médio
+                </h4>
+                <div className="flex flex-col justify-center h-24">
+                  <p className="text-3xl font-black text-slate-900">
+                    R$ {formatCurrency(dailyExpenses.length > 0 ? dailyExpenses.reduce((acc, curr) => acc + curr.value, 0) / 30 : 0)}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">Estimativa baseada em 30 dias</p>
+                </div>
+              </Card>
+            </div>
           </div>
-        </Card>
+
+          {/* Right Sidebar - Upcoming */}
+          <div className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-slate-400" />
+                  Vencimentos e Alertas
+                </h4>
+                <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-md text-[9px] font-black uppercase">
+                  {bills.filter(b => !b.isPaid).length} Faturas
+                </span>
+              </div>
+              
+              <div className="space-y-4">
+                {bills
+                  .filter(b => !b.isPaid)
+                  .sort((a, b) => safeParseISO(a.dueDate).getTime() - safeParseISO(b.dueDate).getTime())
+                  .slice(0, 5)
+                  .map(bill => {
+                    const days = differenceInDays(safeParseISO(bill.dueDate), new Date());
+                    return (
+                      <div key={bill.id} className={cn(
+                        "p-4 rounded-2xl border transition-all",
+                        days < 0 ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100"
+                      )}>
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="font-bold text-slate-900 text-sm">{bill.name}</p>
+                          <p className="text-sm font-black text-slate-900">R$ {formatCurrency(bill.value)}</p>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon className="w-3 h-3 text-slate-400" />
+                            <span className="text-[10px] font-medium text-slate-500">
+                              {safeFormat(bill.dueDate, 'dd/MM/yyyy')}
+                            </span>
+                          </div>
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-tighter",
+                            days < 0 ? "text-red-500" : "text-amber-600"
+                          )}>
+                            {days < 0 ? `Vencido há ${Math.abs(days)}d` : days === 0 ? "Vence hoje" : `Em ${days} dias`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                {bills.filter(b => !b.isPaid).length === 0 && (
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-400 uppercase">Tudo pago!</p>
+                  </div>
+                )}
+              </div>
+              <Button 
+                variant="secondary" 
+                className="w-full mt-6 h-12 rounded-xl text-xs font-bold uppercase tracking-widest"
+                onClick={() => setActiveTab('bills')}
+              >
+                Gerenciar Contas
+              </Button>
+            </Card>
+
+            <Card className="p-6 bg-slate-50 border-slate-200">
+              <h4 className="font-bold text-slate-900 mb-4 text-sm flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-blue-500" />
+                Resumo da Frota
+              </h4>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-500 font-medium">KM Rodados (Total)</span>
+                  <span className="text-sm font-bold text-slate-900">{earningsEntries.reduce((acc, curr) => acc + curr.kmDriven, 0)} km</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-500 font-medium">Eficiência Média</span>
+                  <span className="text-sm font-bold text-slate-900">
+                    R$ {(monthlyStats.totalEarnings / (earningsEntries.reduce((acc, curr) => acc + curr.kmDriven, 0) || 1)).toFixed(2)} / km
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
 
 
   return (
@@ -1760,7 +1956,7 @@ export default function App() {
             <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
               <Car className="text-white w-5 h-5" />
             </div>
-            <h1 className="text-lg font-black tracking-tighter italic">UBER<span className="text-slate-400">FINANÇAS</span></h1>
+            <h1 className="text-lg font-black tracking-tighter italic">MINHAS<span className="text-slate-400">FINANÇAS</span></h1>
           </div>
           <button onClick={() => setIsMenuOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-slate-900">
             <X className="w-5 h-5" />
