@@ -3,6 +3,7 @@ export interface EarningsEntry {
   date: string;
   uberEarnings: number;
   pop99Earnings: number;
+  otherEarnings: number;
   totalEarnings: number;
   costs: number;
   kmDriven: number;

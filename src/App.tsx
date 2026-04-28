@@ -39,7 +39,9 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Cell
+  Cell,
+  PieChart,
+  Pie
 } from 'recharts';
 import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense } from './types';
@@ -209,35 +211,43 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
     date: format(new Date(), 'yyyy-MM-dd'), 
     uberEarnings: '', 
     pop99Earnings: '',
+    otherEarnings: '',
     kmDriven: '',
     extraCosts: '' 
   });
 
   const uberNum = Number(formData.uberEarnings || 0);
   const pop99Num = Number(formData.pop99Earnings || 0);
+  const otherNum = Number(formData.otherEarnings || 0);
   const kmNum = Number(formData.kmDriven || 0);
   const extraCostsNum = Number(formData.extraCosts || 0);
   
   const fuelCost = kmNum * 0.20;
-  const totalEarnings = uberNum + pop99Num;
+  const totalEarnings = uberNum + pop99Num + otherNum;
   const totalCosts = fuelCost + extraCostsNum;
 
   const getComparison = () => {
-    if (uberNum === 0 && pop99Num === 0) return null;
-    if (uberNum > pop99Num) return { text: 'Uber rendeu mais!', color: 'text-slate-900', icon: Car };
-    if (pop99Num > uberNum) return { text: '99 rendeu mais!', color: 'text-amber-600', icon: Car };
-    return { text: 'Empate técnico!', color: 'text-slate-500', icon: Car };
+    const apps = [
+      { name: 'Uber', value: uberNum, color: 'text-slate-900' },
+      { name: '99 Pop', value: pop99Num, color: 'text-amber-600' },
+      { name: 'Outros', value: otherNum, color: 'text-blue-600' }
+    ];
+    const top = [...apps].sort((a, b) => b.value - a.value)[0];
+    
+    if (top.value === 0) return null;
+    return { text: `${top.name} rendeu mais!`, color: top.color, icon: Car };
   };
 
   const comparison = getComparison();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalEarnings <= 0) return;
+    if (totalEarnings <= 0 && totalCosts <= 0) return;
     onAdd({
       date: formData.date,
       uberEarnings: uberNum,
       pop99Earnings: pop99Num,
+      otherEarnings: otherNum,
       totalEarnings: totalEarnings,
       costs: totalCosts,
       kmDriven: kmNum
@@ -246,6 +256,7 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
       date: format(new Date(), 'yyyy-MM-dd'), 
       uberEarnings: '', 
       pop99Earnings: '', 
+      otherEarnings: '',
       kmDriven: '',
       extraCosts: '' 
     });
@@ -265,7 +276,7 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
             <Input 
               label="Data" 
               type="date" 
@@ -287,6 +298,13 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, pop99Earnings: e.target.value })} 
             />
             <Input 
+              label="Outros Ganhos (R$)" 
+              type="number" 
+              placeholder="0,00"
+              value={formData.otherEarnings} 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, otherEarnings: e.target.value })} 
+            />
+            <Input 
               label="KM Rodado" 
               type="number" 
               placeholder="0"
@@ -294,7 +312,7 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, kmDriven: e.target.value })} 
             />
             <Input 
-              label="Outros Custos (R$)" 
+              label="Custos Extras (R$)" 
               type="number" 
               placeholder="0,00"
               value={formData.extraCosts} 
@@ -332,7 +350,8 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Uber</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">99</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">KM Rodado</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Outros</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">KM</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">TotalBruto</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Custos</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Líquido</th>
@@ -350,6 +369,9 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
                   </td>
                   <td className="px-6 py-4 text-amber-600 text-sm">
                     R$ {formatCurrency(entry.pop99Earnings)}
+                  </td>
+                  <td className="px-6 py-4 text-blue-600 text-sm">
+                    R$ {formatCurrency(entry.otherEarnings || 0)}
                   </td>
                   <td className="px-6 py-4 text-slate-400 text-sm">
                     {entry.kmDriven || 0} km
@@ -496,7 +518,19 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
               </select>
             )}
           </div>
-          <Button type="submit" className="w-full">
+          <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 lg:col-span-5">
+            <input 
+              id="recurring"
+              type="checkbox" 
+              checked={formData.isRecurring} 
+              onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
+              className="w-4 h-4 rounded text-slate-900 focus:ring-slate-900 border-slate-300"
+            />
+            <label htmlFor="recurring" className="text-sm font-medium text-slate-700 cursor-pointer">
+              Conta Recorrente (Gerar automaticamente todos os meses)
+            </label>
+          </div>
+          <Button type="submit" className="w-full lg:col-span-1">
             <Plus className="w-4 h-4" /> Adicionar
           </Button>
         </form>
@@ -513,7 +547,14 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
             )}>
               <div className="flex justify-between items-start mb-3">
                 <div>
-                  <h4 className="font-bold text-slate-900">{bill.name}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-slate-900">{bill.name}</h4>
+                    {bill.isRecurring && (
+                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-tighter">
+                        <Bell className="w-2.5 h-2.5" /> Recorrente
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500">Vence em {safeFormat(bill.dueDate, 'dd/MM/yyyy')}</p>
                 </div>
                 <div className={cn(
@@ -995,73 +1036,218 @@ const ReportView = ({ earnings, expenses, bills }: {
   expenses: DailyExpense[];
   bills: Bill[];
 }) => {
-  const totalEarnings = earnings.reduce((acc, curr) => acc + curr.totalEarnings, 0);
-  const totalCosts = earnings.reduce((acc, curr) => acc + curr.costs, 0);
-  const totalExpenses = expenses.reduce((acc, curr) => acc + curr.value, 0);
-  const totalBills = bills.reduce((acc, curr) => acc + curr.value, 0);
-  const paidBills = bills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
+  const totalUber = earnings.reduce((acc, curr) => acc + curr.uberEarnings, 0);
+  const total99 = earnings.reduce((acc, curr) => acc + curr.pop99Earnings, 0);
+  const totalOtherEarnings = earnings.reduce((acc, curr) => acc + (curr.otherEarnings || 0), 0);
+  const totalGrossEarnings = totalUber + total99 + totalOtherEarnings;
+
+  const operationalCosts = earnings.reduce((acc, curr) => acc + curr.costs, 0);
+  const dailyExpensesValue = expenses.reduce((acc, curr) => acc + curr.value, 0);
+  const totalBillsValue = bills.reduce((acc, curr) => acc + curr.value, 0);
+  const paidBillsValue = bills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
+  
+  const totalAllCosts = operationalCosts + dailyExpensesValue + totalBillsValue;
+  const netBalance = totalGrossEarnings - totalAllCosts;
+
+  const dataApps = [
+    { name: 'Uber', value: totalUber, color: '#0f172a' },
+    { name: '99 Pop', value: total99, color: '#f59e0b' },
+    { name: 'Outros', value: totalOtherEarnings, color: '#3b82f6' }
+  ].filter(d => d.value > 0);
+
+  const dataExpenses = [
+    { name: 'Operacional', value: operationalCosts, color: '#ef4444' },
+    { name: 'Diários', value: dailyExpensesValue, color: '#f97316' },
+    { name: 'Contas Fixas', value: totalBillsValue, color: '#64748b' }
+  ].filter(d => d.value > 0);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <h3 className="text-2xl font-bold text-slate-900">Relatório Detalhado</h3>
-        <Button variant="secondary" onClick={() => window.print()} className="hidden md:flex gap-2 px-3 py-1 text-xs">
-          <FileText className="w-4 h-4" /> Imprimir Relatório
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Relatório de Desempenho</h3>
+          <p className="text-sm text-slate-500">Visão consolidada de todas as suas finanças</p>
+        </div>
+        <Button variant="secondary" onClick={() => window.print()} className="hidden md:flex gap-2 h-11 px-6">
+          <Printer className="w-4 h-4" /> Exportar PDF
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border-l-4 border-l-emerald-500">
-          <p className="text-xs font-bold text-slate-400 uppercase">Ganhos Brutos</p>
-          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalEarnings)}</p>
+      {/* Financial Health Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="p-8 bg-slate-900 border-none shadow-xl shadow-slate-900/20">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Lucro Líquido Real</p>
+          <div className="flex items-baseline gap-2 mb-4">
+            <h4 className={cn(
+              "text-4xl font-black tracking-tight",
+              netBalance >= 0 ? "text-emerald-400" : "text-red-400"
+            )}>
+              R$ {formatCurrency(netBalance)}
+            </h4>
+          </div>
+          <div className="pt-6 border-t border-white/10 flex justify-between">
+            <div>
+              <p className="text-[9px] font-bold text-white/40 uppercase">Ganhos Totais</p>
+              <p className="font-bold text-white">R$ {formatCurrency(totalGrossEarnings)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] font-bold text-white/40 uppercase">Dívidas/Gastos</p>
+              <p className="font-bold text-red-400">R$ {formatCurrency(totalAllCosts)}</p>
+            </div>
+          </div>
         </Card>
-        <Card className="p-4 border-l-4 border-l-amber-500">
-          <p className="text-xs font-bold text-slate-400 uppercase">Custos Operacionais</p>
-          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalCosts)}</p>
-        </Card>
-        <Card className="p-4 border-l-4 border-l-red-500">
-          <p className="text-xs font-bold text-slate-400 uppercase">Gastos Diários</p>
-          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalExpenses)}</p>
-        </Card>
-        <Card className="p-4 border-l-4 border-l-slate-900">
-          <p className="text-xs font-bold text-slate-400 uppercase">Total de Contas</p>
-          <p className="text-xl font-bold text-slate-900">R$ {formatCurrency(totalBills)}</p>
+
+        <Card className="p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="font-bold text-lg flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-500" /> Distribuição de Receita
+            </h4>
+            <div className="flex gap-4">
+              {dataApps.map(app => (
+                <div key={app.name} className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: app.color }} />
+                  <span className="text-xs font-bold text-slate-500">{app.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="h-4 sm:h-8 flex rounded-full overflow-hidden bg-slate-100">
+            {dataApps.map(app => (
+              <div 
+                key={app.name}
+                style={{ 
+                  width: `${(app.value / (totalGrossEarnings || 1)) * 100}%`,
+                  backgroundColor: app.color
+                }}
+                className="h-full transition-all duration-500 hover:opacity-80"
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-4 mt-6">
+            {dataApps.map(app => (
+              <div key={app.name} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">{app.name}</p>
+                <p className="text-sm font-black text-slate-900">R$ {formatCurrency(app.value)}</p>
+                <p className="text-[9px] font-bold text-emerald-600">
+                  {((app.value / (totalGrossEarnings || 1)) * 100).toFixed(1)}% do total
+                </p>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Detailed Expenses Breakdown */}
         <Card className="p-6">
-          <h4 className="font-bold mb-4 flex items-center gap-2">
-            <Car className="w-5 h-5 text-slate-400" /> Detalhes de Aplicativos
+          <h4 className="font-bold mb-6 flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-slate-400" /> Todos os Custos & Gastos
           </h4>
           <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-sm font-medium">Uber</span>
-              <span className="font-bold">R$ {formatCurrency(earnings.reduce((acc, curr) => acc + curr.uberEarnings, 0))}</span>
+            <div className="flex items-center justify-between p-4 bg-red-50/50 rounded-2xl border border-red-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-lg"><Car className="w-4 h-4 text-red-600" /></div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Custos Operacionais</p>
+                  <p className="text-[10px] text-red-600/70 font-medium">Combustível + Extras do KM</p>
+                </div>
+              </div>
+              <span className="font-black text-red-600">R$ {formatCurrency(operationalCosts)}</span>
             </div>
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-sm font-medium">99 Pop</span>
-              <span className="font-bold">R$ {formatCurrency(earnings.reduce((acc, curr) => acc + curr.pop99Earnings, 0))}</span>
+
+            <div className="flex items-center justify-between p-4 bg-orange-50/50 rounded-2xl border border-orange-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg"><Utensils className="w-4 h-4 text-orange-600" /></div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Gastos Diários</p>
+                  <p className="text-[10px] text-orange-600/70 font-medium">Lanches, Refeições, Outros</p>
+                </div>
+              </div>
+              <span className="font-black text-orange-600">R$ {formatCurrency(dailyExpensesValue)}</span>
             </div>
+
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-200 rounded-lg"><Receipt className="w-4 h-4 text-slate-600" /></div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Contas Fixas</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Aluguel, Carro, Seguros, etc</p>
+                </div>
+              </div>
+              <span className="font-black text-slate-900">R$ {formatCurrency(totalBillsValue)}</span>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Custo Médio Diário</p>
+            <p className="text-2xl font-black text-slate-900">
+              R$ {formatCurrency(totalAllCosts / (earnings.length || 1), { minimumFractionDigits: 2 })}
+            </p>
           </div>
         </Card>
 
+        {/* Categories Analysis */}
         <Card className="p-6">
-          <h4 className="font-bold mb-4 flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-slate-400" /> Resumo de Contas
+          <h4 className="font-bold mb-6 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-slate-400" /> Visão de Pagamento de Contas
           </h4>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-sm font-medium text-emerald-600">Pagas</span>
-              <span className="font-bold text-emerald-600">R$ {formatCurrency(paidBills)}</span>
+          <div className="h-[200px] w-full flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Pagas', value: paidBillsValue },
+                    { name: 'Pendentes', value: totalBillsValue - paidBillsValue }
+                  ].filter(d => d.value > 0)}
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  <Cell fill="#10b981" />
+                  <Cell fill="#f43f5e" />
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="space-y-3 mt-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500 font-medium flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500" /> Pagas
+              </span>
+              <span className="font-bold text-emerald-600">R$ {formatCurrency(paidBillsValue)}</span>
             </div>
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-sm font-medium text-amber-600">Pendentes</span>
-              <span className="font-bold text-amber-600">R$ {formatCurrency(totalBills - paidBills)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500 font-medium flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500" /> Pendentes
+              </span>
+              <span className="font-bold text-red-600">R$ {formatCurrency(totalBillsValue - paidBillsValue)}</span>
             </div>
           </div>
         </Card>
       </div>
+
+      {/* Tips / Insights Dashboard */}
+      <Card className="p-6 bg-blue-50 border-blue-200">
+        <h4 className="font-bold text-blue-900 mb-4 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" /> Dicas Rápidas
+        </h4>
+        <ul className="space-y-2 text-sm text-blue-700">
+          <li className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
+            {totalUber > total99 
+              ? "A Uber está sendo seu app principal. Considere ver bônus da 99 para diversificar." 
+              : "A 99 Pop está rendendo muito bem! Fique atento às taxas da Uber."}
+          </li>
+          <li className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
+            {netBalance < totalGrossEarnings * 0.4 
+              ? "Seus custos estão consumindo mais de 60% da receita. Tente otimizar as rotas." 
+              : "Parabéns! Sua margem de lucro está excelente este período."}
+          </li>
+        </ul>
+      </Card>
     </div>
   );
 };
@@ -1086,6 +1272,7 @@ export default function App() {
         ...entry,
         uberEarnings: entry.uberEarnings ?? entry.earnings ?? 0,
         pop99Earnings: entry.pop99Earnings ?? 0,
+        otherEarnings: entry.otherEarnings ?? 0,
         totalEarnings: entry.totalEarnings ?? entry.earnings ?? 0,
         costs: entry.costs ?? 0,
         kmDriven: entry.kmDriven ?? 0
@@ -1174,6 +1361,59 @@ export default function App() {
     localStorage.setItem('uber_expense_custom_categories', JSON.stringify(customExpenseCategories));
   }, [customExpenseCategories]);
 
+  // Automatic Recurrence Rollover: Ensure recurring bills from previous months exist for current month
+  useEffect(() => {
+    if (bills.length === 0) return;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    setBills(prev => {
+      const newBills: Bill[] = [...prev];
+      let changed = false;
+
+      // Find all unique recurring bill templates (based on name)
+      const recurringTemplates = prev.filter(b => b.isRecurring);
+      const uniqueTemplateNames = Array.from(new Set(recurringTemplates.map(b => b.name)));
+
+      uniqueTemplateNames.forEach(name => {
+        // Find the latest instance of this recurring bill
+        const instances = prev.filter(b => b.name === name);
+        const latestInstance = [...instances].sort((a, b) => 
+          safeParseISO(b.dueDate).getTime() - safeParseISO(a.dueDate).getTime()
+        )[0];
+
+        if (latestInstance && latestInstance.isRecurring) {
+          const latestDate = safeParseISO(latestInstance.dueDate);
+          let checkDate = addMonths(latestDate, 1);
+
+          // Generate instances until we hit the current month/year
+          while (
+            (checkDate.getFullYear() < currentYear) || 
+            (checkDate.getFullYear() === currentYear && checkDate.getMonth() <= currentMonth)
+          ) {
+            const dateStr = format(checkDate, 'yyyy-MM-dd');
+            const alreadyExists = prev.some(b => b.name === name && b.dueDate === dateStr);
+
+            if (!alreadyExists) {
+              newBills.push({
+                ...latestInstance,
+                id: generateId(),
+                dueDate: dateStr,
+                isPaid: false
+              });
+              changed = true;
+            }
+            checkDate = addMonths(checkDate, 1);
+          }
+        }
+      });
+
+      return changed ? newBills : prev;
+    });
+  }, []); // Run only on mount
+
   // --- Handlers ---
 
   const addEarningsEntry = (entry: Omit<EarningsEntry, 'id'>) => {
@@ -1196,8 +1436,8 @@ export default function App() {
       const isMarkingAsPaid = !bill.isPaid;
       const updated = prev.map(b => b.id === id ? { ...b, isPaid: !b.isPaid } : b);
       
-      // Recurrence logic: if marking as paid, create a new item for the next month
-      if (isMarkingAsPaid) {
+      // Recurrence logic: if marking as paid AND it's recurring, create a new item for the next month
+      if (isMarkingAsPaid && bill.isRecurring) {
         const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
         const alreadyExists = prev.some(b => b.name === bill.name && b.dueDate === nextDueDate);
         
