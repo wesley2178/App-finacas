@@ -22,6 +22,8 @@ import {
   TrendingUp,
   TrendingDown,
   Calendar as CalendarIcon,
+  ChevronUp,
+  ChevronDown,
   ChevronRight,
   Bell,
   ShoppingBag,
@@ -1306,58 +1308,160 @@ const ReportView = ({ earnings, expenses, bills }: {
 
 
 
-const HistoryView = ({ archives }: { archives: MonthArchive[] }) => {
+const HistoryView = ({ archives, onManualReset }: { 
+  archives: MonthArchive[]; 
+  onManualReset: () => void;
+}) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (archives.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-slate-100 italic text-slate-400">
         <History className="w-12 h-12 mb-4 opacity-20" />
         <p>Nenhum histórico disponível ainda.</p>
-        <p className="text-xs mt-1">Os dados serão arquivados automaticamente no primeiro dia do mês.</p>
+        <p className="text-xs mt-4 max-w-xs text-center">
+          Os dados são arquivados automaticamente no dia 1º ou você pode fechar o mês manualmente abaixo.
+        </p>
+        <Button 
+          variant="secondary" 
+          onClick={onManualReset}
+          className="mt-6 border-slate-200"
+        >
+          Fechar Mês Atual Agora
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {archives.map(archive => (
-        <Card key={archive.id} className="p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-            <h3 className="text-lg font-black text-slate-900 uppercase">
-              {format(safeParseISO(archive.month + "-01"), 'MMMM yyyy', { locale: ptBR })}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-               <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-wider">
-                 Ganhos: R$ {formatCurrency(archive.totalEarnings)}
-               </span>
-               <span className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-black uppercase tracking-wider">
-                 Gastos: R$ {formatCurrency(archive.totalExpenses + archive.totalBills)}
-               </span>
-            </div>
-          </div>
+      <div className="flex justify-between items-center bg-amber-50 p-4 rounded-2xl border border-amber-100">
+        <div className="flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600" />
+          <p className="text-xs font-medium text-amber-800">
+            Deseja encerrar o mês atual antes do dia 1º? 
+          </p>
+        </div>
+        <Button 
+          onClick={onManualReset}
+          className="bg-amber-600 hover:bg-amber-700 text-white border-none text-[10px] h-8 px-4"
+        >
+          Fechar e Arquivar
+        </Button>
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest">Dias Trabalhados</p>
-                <p className="text-xl font-black text-slate-900">{archive.earnings.length}</p>
-             </div>
-             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest">Média por Dia</p>
-                <p className="text-xl font-black text-slate-900">
-                   R$ {formatCurrency(archive.earnings.length > 0 ? archive.totalEarnings / archive.earnings.length : 0)}
-                </p>
-             </div>
-             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest">Saldo Final</p>
-                <p className={cn(
-                  "text-xl font-black",
-                  (archive.totalEarnings - (archive.totalExpenses + archive.totalBills)) >= 0 ? "text-emerald-600" : "text-red-600"
-                )}>
-                   R$ {formatCurrency(archive.totalEarnings - (archive.totalExpenses + archive.totalBills))}
-                </p>
-             </div>
-          </div>
-        </Card>
-      ))}
+      {archives.map(archive => {
+        const isExpanded = expandedId === archive.id;
+        const netResult = archive.totalEarnings - (archive.totalExpenses + archive.totalBills);
+        
+        // Detailed stats for history
+        const uberTotal = archive.earnings.reduce((acc, curr) => acc + (curr.uberEarnings || 0), 0);
+        const pop99Total = archive.earnings.reduce((acc, curr) => acc + (curr.pop99Earnings || 0), 0);
+        const otherTotal = archive.earnings.reduce((acc, curr) => acc + (curr.otherEarnings || 0), 0);
+        const operationalCosts = archive.earnings.reduce((acc, curr) => acc + (curr.costs || 0), 0);
+
+        return (
+          <Card key={archive.id} className="overflow-hidden border-slate-200 shadow-sm hover:shadow-md transition-all">
+            <div 
+              className="p-6 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              onClick={() => setExpandedId(isExpanded ? null : archive.id)}
+            >
+              <div>
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">
+                  {format(safeParseISO(archive.month + "-01"), 'MMMM yyyy', { locale: ptBR })}
+                </h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[9px] font-black uppercase",
+                    netResult >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                  )}>
+                    Saldo: R$ {formatCurrency(netResult)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bold">{archive.earnings.length} dias trabalhados</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right hidden sm:block">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Receita Total</p>
+                  <p className="text-sm font-black text-slate-900">R$ {formatCurrency(archive.totalEarnings)}</p>
+                </div>
+                <div className="p-2 bg-slate-50 rounded-full">
+                  {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                </div>
+              </div>
+            </div>
+
+            {isExpanded && (
+              <div className="px-6 pb-6 pt-2 border-t border-slate-50 bg-slate-50/30 animate-in slide-in-from-top-2 duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Detalhamento de Ganhos</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Uber Driver</span>
+                        <span className="font-bold text-slate-900">R$ {formatCurrency(uberTotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">99 Pop</span>
+                        <span className="font-bold text-slate-900">R$ {formatCurrency(pop99Total)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Outros Ganhos</span>
+                        <span className="font-bold text-slate-900">R$ {formatCurrency(otherTotal)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Detalhamento de Saídas</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Custos de Rodagem (Carro)</span>
+                        <span className="font-bold text-red-600">R$ {formatCurrency(operationalCosts)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Contas Fixas Mensais</span>
+                        <span className="font-bold text-red-600">R$ {formatCurrency(archive.totalBills)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Gastos Diários (Rua)</span>
+                        <span className="font-bold text-red-600">R$ {formatCurrency(archive.totalExpenses)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 p-4 bg-white rounded-2xl border border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">KM Total</p>
+                    <p className="text-sm font-black text-slate-900">
+                      {archive.earnings.reduce((acc, curr) => acc + (curr.kmDriven || 0), 0)} km
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Média Diária</p>
+                    <p className="text-sm font-black text-slate-900">
+                      R$ {formatCurrency(archive.earnings.length > 0 ? archive.totalEarnings / archive.earnings.length : 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Lucro Líquido</p>
+                    <p className={cn("text-sm font-black", netResult >= 0 ? "text-emerald-600" : "text-red-600")}>
+                      R$ {formatCurrency(netResult)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">% de Custos</p>
+                    <p className="text-sm font-black text-slate-900">
+                      {(( (archive.totalExpenses + archive.totalBills + operationalCosts) / (archive.totalEarnings || 1)) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 };
@@ -1484,52 +1588,56 @@ export default function App() {
     localStorage.setItem('monthly_archives', JSON.stringify(archives));
   }, [archives]);
 
-  // Monthly Reset and Archive Logic
+  const handleMonthlyReset = (monthToArchive: string) => {
+    // Current month data archiving
+    const archiveId = generateId();
+    const monthArchive: MonthArchive = {
+      id: archiveId,
+      month: monthToArchive,
+      earnings: [...earningsEntries],
+      expenses: [...dailyExpenses],
+      bills: bills.filter(b => !b.isRecurring),
+      totalEarnings: earningsEntries.reduce((acc, curr) => acc + curr.totalEarnings, 0),
+      totalExpenses: dailyExpenses.reduce((acc, curr) => acc + curr.value, 0),
+      totalBills: bills.filter(b => !b.isRecurring).reduce((acc, curr) => acc + curr.value, 0),
+    };
+
+    // Only archive if there's actually data
+    if (monthArchive.earnings.length > 0 || monthArchive.expenses.length > 0 || monthArchive.bills.length > 0) {
+      setArchives(prev => [monthArchive, ...prev]);
+    }
+
+    // Reset data for the new month
+    setEarningsEntries([]);
+    setDailyExpenses([]);
+    
+    // Recurring bills stay, but update their dueDate to the current month/year and reset isPaid
+    setBills(prev => prev.filter(b => b.isRecurring).map(bill => {
+      const currentDueDate = safeParseISO(bill.dueDate);
+      const now = new Date();
+      const newDueDate = new Date(now.getFullYear(), now.getMonth(), currentDueDate.getDate());
+      return {
+        ...bill,
+        dueDate: format(newDueDate, 'yyyy-MM-dd'),
+        isPaid: false
+      };
+    }));
+
+    localStorage.setItem('last_monthly_reset', format(new Date(), 'yyyy-MM'));
+  };
+
+  // Monthly Reset and Archive Logic (Automatic)
   useEffect(() => {
     const now = new Date();
     const currentMonthKey = format(now, 'yyyy-MM');
     const lastResetKey = localStorage.getItem('last_monthly_reset');
 
     if (lastResetKey && lastResetKey !== currentMonthKey) {
-      // It's a new month! Archive data from the previous month
-      const archiveId = generateId();
-      const monthArchive: MonthArchive = {
-        id: archiveId,
-        month: lastResetKey,
-        earnings: [...earningsEntries],
-        expenses: [...dailyExpenses],
-        bills: bills.filter(b => !b.isRecurring),
-        totalEarnings: earningsEntries.reduce((acc, curr) => acc + curr.totalEarnings, 0),
-        totalExpenses: dailyExpenses.reduce((acc, curr) => acc + curr.value, 0),
-        totalBills: bills.reduce((acc, curr) => acc + curr.value, 0),
-      };
-
-      // Only archive if there's actually data
-      if (monthArchive.earnings.length > 0 || monthArchive.expenses.length > 0 || monthArchive.bills.length > 0) {
-        setArchives(prev => [monthArchive, ...prev]);
-      }
-
-      // Reset data for the new month
-      setEarningsEntries([]);
-      setDailyExpenses([]);
-      
-      // Recurring bills stay, but update their dueDate to the current month and reset isPaid
-      setBills(prev => prev.filter(b => b.isRecurring).map(bill => {
-        const currentDueDate = safeParseISO(bill.dueDate);
-        // Calculate new due date (same day, current month)
-        const newDueDate = new Date(now.getFullYear(), now.getMonth(), currentDueDate.getDate());
-        return {
-          ...bill,
-          dueDate: format(newDueDate, 'yyyy-MM-dd'),
-          isPaid: false
-        };
-      }));
-
-      localStorage.setItem('last_monthly_reset', currentMonthKey);
+      handleMonthlyReset(lastResetKey);
     } else if (!lastResetKey) {
       localStorage.setItem('last_monthly_reset', currentMonthKey);
     }
-  }, [earningsEntries, dailyExpenses, bills]); // Dependencies updated to ensure we have current data when reset triggers
+  }, [earningsEntries, dailyExpenses, bills]); 
 
   // Automatic Recurrence Rollover: Ensure recurring bills from previous months exist for current month
   useEffect(() => {
@@ -2297,7 +2405,13 @@ export default function App() {
               />
             )}
             {activeTab === 'history' && (
-              <HistoryView archives={archives} />
+              <HistoryView 
+                archives={archives} 
+                onManualReset={() => {
+                  const lastResetKey = localStorage.getItem('last_monthly_reset') || format(new Date(), 'yyyy-MM');
+                  handleMonthlyReset(lastResetKey);
+                }}
+              />
             )}
           </ErrorBoundary>
         </main>
