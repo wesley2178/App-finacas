@@ -33,3 +33,14 @@ export interface DailyExpense {
   date: string;
   category: string;
 }
+
+export interface MonthArchive {
+  id: string;
+  month: string; // 'yyyy-MM'
+  earnings: EarningsEntry[];
+  expenses: DailyExpense[];
+  bills: Bill[];
+  totalEarnings: number;
+  totalExpenses: number;
+  totalBills: number;
+}

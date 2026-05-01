@@ -27,7 +27,8 @@ import {
   ShoppingBag,
   Utensils,
   FileText,
-  Printer
+  Printer,
+  History
 } from 'lucide-react';
 import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -44,10 +45,10 @@ import {
   Pie
 } from 'recharts';
 import { cn } from './lib/utils';
-import { EarningsEntry, Bill, SavingsDeposit, DailyExpense } from './types';
+import { EarningsEntry, Bill, SavingsDeposit, DailyExpense, MonthArchive } from './types';
 
 // --- Types ---
-type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report';
+type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report' | 'history';
 
 const CAIXINHA_CATEGORIES = ['rent', 'car', 'insurance', 'maintenance'];
 
@@ -403,11 +404,12 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
   );
 };
 
-const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCategory }: {
+const BillsView = ({ bills, onAdd, onToggle, onDelete, onEdit, customCategories, onAddCategory }: {
   bills: Bill[];
   onAdd: (bill: Omit<Bill, 'id' | 'isPaid'>) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, updates: Partial<Bill>) => void;
   customCategories: string[];
   onAddCategory: (name: string) => void;
 }) => {
@@ -420,6 +422,8 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
   });
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,6 +449,19 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
       onAddCategory(newCategoryName.trim());
       setNewCategoryName('');
       setShowAddCategory(false);
+    }
+  };
+
+  const startEditing = (bill: Bill) => {
+    setEditingBillId(bill.id);
+    setEditingValue(bill.value.toString());
+  };
+
+  const saveEdit = () => {
+    if (editingBillId && editingValue) {
+      onEdit(editingBillId, { value: Number(editingValue) });
+      setEditingBillId(null);
+      setEditingValue("");
     }
   };
 
@@ -539,6 +556,7 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {bills.map(bill => {
           const isOverdue = !bill.isPaid && isBefore(safeParseISO(bill.dueDate), new Date()) && !isSameDay(safeParseISO(bill.dueDate), new Date());
+          const isEditing = editingBillId === bill.id;
           
           return (
             <Card key={bill.id} className={cn(
@@ -566,7 +584,41 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, customCategories, onAddCa
               </div>
               
               <div className="flex items-center justify-between mt-6">
-                <span className="text-xl font-bold text-slate-900">R$ {formatCurrency(bill.value)}</span>
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-400">R$</span>
+                    <input 
+                      type="number"
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      className="w-24 px-2 py-1 text-lg font-bold border-b border-slate-900 focus:outline-none"
+                      autoFocus
+                    />
+                    <button 
+                      onClick={saveEdit}
+                      className="p-1.5 bg-slate-900 text-white rounded-lg"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => setEditingBillId(null)}
+                      className="p-1.5 bg-slate-100 text-slate-400 rounded-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-bold text-slate-900">R$ {formatCurrency(bill.value)}</span>
+                    <button 
+                      onClick={() => startEditing(bill)}
+                      className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                      title="Editar valor este mês"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button 
                     onClick={() => onToggle(bill.id)}
@@ -1254,6 +1306,62 @@ const ReportView = ({ earnings, expenses, bills }: {
 
 
 
+const HistoryView = ({ archives }: { archives: MonthArchive[] }) => {
+  if (archives.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-slate-100 italic text-slate-400">
+        <History className="w-12 h-12 mb-4 opacity-20" />
+        <p>Nenhum histórico disponível ainda.</p>
+        <p className="text-xs mt-1">Os dados serão arquivados automaticamente no primeiro dia do mês.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {archives.map(archive => (
+        <Card key={archive.id} className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+            <h3 className="text-lg font-black text-slate-900 uppercase">
+              {format(safeParseISO(archive.month + "-01"), 'MMMM yyyy', { locale: ptBR })}
+            </h3>
+            <div className="flex flex-wrap gap-2">
+               <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-wider">
+                 Ganhos: R$ {formatCurrency(archive.totalEarnings)}
+               </span>
+               <span className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-black uppercase tracking-wider">
+                 Gastos: R$ {formatCurrency(archive.totalExpenses + archive.totalBills)}
+               </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest">Dias Trabalhados</p>
+                <p className="text-xl font-black text-slate-900">{archive.earnings.length}</p>
+             </div>
+             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest">Média por Dia</p>
+                <p className="text-xl font-black text-slate-900">
+                   R$ {formatCurrency(archive.earnings.length > 0 ? archive.totalEarnings / archive.earnings.length : 0)}
+                </p>
+             </div>
+             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest">Saldo Final</p>
+                <p className={cn(
+                  "text-xl font-black",
+                  (archive.totalEarnings - (archive.totalExpenses + archive.totalBills)) >= 0 ? "text-emerald-600" : "text-red-600"
+                )}>
+                   R$ {formatCurrency(archive.totalEarnings - (archive.totalExpenses + archive.totalBills))}
+                </p>
+             </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -1337,6 +1445,17 @@ export default function App() {
     }
   });
 
+  const [archives, setArchives] = useState<MonthArchive[]>(() => {
+    const saved = localStorage.getItem('monthly_archives');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   useEffect(() => {
     localStorage.setItem('uber_entries', JSON.stringify(earningsEntries));
   }, [earningsEntries]);
@@ -1360,6 +1479,57 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('uber_expense_custom_categories', JSON.stringify(customExpenseCategories));
   }, [customExpenseCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('monthly_archives', JSON.stringify(archives));
+  }, [archives]);
+
+  // Monthly Reset and Archive Logic
+  useEffect(() => {
+    const now = new Date();
+    const currentMonthKey = format(now, 'yyyy-MM');
+    const lastResetKey = localStorage.getItem('last_monthly_reset');
+
+    if (lastResetKey && lastResetKey !== currentMonthKey) {
+      // It's a new month! Archive data from the previous month
+      const archiveId = generateId();
+      const monthArchive: MonthArchive = {
+        id: archiveId,
+        month: lastResetKey,
+        earnings: [...earningsEntries],
+        expenses: [...dailyExpenses],
+        bills: bills.filter(b => !b.isRecurring),
+        totalEarnings: earningsEntries.reduce((acc, curr) => acc + curr.totalEarnings, 0),
+        totalExpenses: dailyExpenses.reduce((acc, curr) => acc + curr.value, 0),
+        totalBills: bills.reduce((acc, curr) => acc + curr.value, 0),
+      };
+
+      // Only archive if there's actually data
+      if (monthArchive.earnings.length > 0 || monthArchive.expenses.length > 0 || monthArchive.bills.length > 0) {
+        setArchives(prev => [monthArchive, ...prev]);
+      }
+
+      // Reset data for the new month
+      setEarningsEntries([]);
+      setDailyExpenses([]);
+      
+      // Recurring bills stay, but update their dueDate to the current month and reset isPaid
+      setBills(prev => prev.filter(b => b.isRecurring).map(bill => {
+        const currentDueDate = safeParseISO(bill.dueDate);
+        // Calculate new due date (same day, current month)
+        const newDueDate = new Date(now.getFullYear(), now.getMonth(), currentDueDate.getDate());
+        return {
+          ...bill,
+          dueDate: format(newDueDate, 'yyyy-MM-dd'),
+          isPaid: false
+        };
+      }));
+
+      localStorage.setItem('last_monthly_reset', currentMonthKey);
+    } else if (!lastResetKey) {
+      localStorage.setItem('last_monthly_reset', currentMonthKey);
+    }
+  }, [earningsEntries, dailyExpenses, bills]); // Dependencies updated to ensure we have current data when reset triggers
 
   // Automatic Recurrence Rollover: Ensure recurring bills from previous months exist for current month
   useEffect(() => {
@@ -1459,6 +1629,10 @@ export default function App() {
   const deleteBill = (id: string) => {
     setBills(prev => prev.filter(b => b.id !== id));
     setDeposits(prev => prev.filter(d => d.billId !== id));
+  };
+
+  const updateBill = (id: string, updates: Partial<Bill>) => {
+    setBills(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
   };
 
   const addDeposit = (deposit: Omit<SavingsDeposit, 'id'>) => {
@@ -1971,6 +2145,7 @@ export default function App() {
             { id: 'bills', icon: Receipt, label: 'Gestão de Contas' },
             { id: 'savings', icon: PiggyBank, label: 'Minhas Caixinhas' },
             { id: 'report', icon: FileText, label: 'Relatórios' },
+            { id: 'history', icon: History, label: 'Histórico' },
           ] as const).map(item => (
             <button
               key={item.id}
@@ -2024,6 +2199,7 @@ export default function App() {
                   {activeTab === 'bills' && "Minhas Contas"}
                   {activeTab === 'savings' && "Minhas Caixinhas"}
                   {activeTab === 'report' && "Relatório"}
+                  {activeTab === 'history' && "Histórico Mensal"}
                 </h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">
                   {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
@@ -2092,6 +2268,7 @@ export default function App() {
                 onAdd={addBill} 
                 onToggle={toggleBillPaid} 
                 onDelete={deleteBill} 
+                onEdit={updateBill}
                 customCategories={customCategories}
                 onAddCategory={(name) => setCustomCategories(prev => [...prev, name])}
               />
@@ -2118,6 +2295,9 @@ export default function App() {
                 expenses={dailyExpenses} 
                 bills={bills} 
               />
+            )}
+            {activeTab === 'history' && (
+              <HistoryView archives={archives} />
             )}
           </ErrorBoundary>
         </main>
