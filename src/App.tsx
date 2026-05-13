@@ -30,7 +30,8 @@ import {
   Utensils,
   FileText,
   Printer,
-  History
+  History,
+  LogOut
 } from 'lucide-react';
 import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -48,6 +49,7 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense, MonthArchive } from './types';
+import { checkUserAccess } from './lib/firebase';
 
 // --- Types ---
 type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report' | 'history';
@@ -205,10 +207,18 @@ const Input = ({
 
 // --- Sub-components for Views ---
 
-const EarningsView = ({ entries, onAdd, onDelete }: { 
+const EarningsView = ({ 
+  entries, 
+  onAdd, 
+  onDelete,
+  fuelCostPerKm,
+  onChangeFuelCost
+}: { 
   entries: EarningsEntry[]; 
   onAdd: (entry: Omit<EarningsEntry, 'id'>) => void;
   onDelete: (id: string) => void;
+  fuelCostPerKm: number;
+  onChangeFuelCost: (val: number) => void;
 }) => {
   const [formData, setFormData] = useState({ 
     date: format(new Date(), 'yyyy-MM-dd'), 
@@ -225,7 +235,7 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
   const kmNum = Number(formData.kmDriven || 0);
   const extraCostsNum = Number(formData.extraCosts || 0);
   
-  const fuelCost = kmNum * 0.20;
+  const fuelCost = kmNum * fuelCostPerKm;
   const totalEarnings = uberNum + pop99Num + otherNum;
   const totalCosts = fuelCost + extraCostsNum;
 
@@ -270,12 +280,24 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-bold">Calculadora de Ganhos</h3>
-          {comparison && (
-            <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-100 text-xs font-bold", comparison.color)}>
-              <comparison.icon className="w-3 h-3" />
-              {comparison.text}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <span className="text-xs font-bold text-slate-500">R$ / KM:</span>
+              <input 
+                type="number" 
+                step="0.01"
+                value={fuelCostPerKm}
+                onChange={(e) => onChangeFuelCost(Number(e.target.value))}
+                className="w-16 bg-transparent border-none focus:outline-none text-sm font-black text-slate-900 p-0"
+              />
             </div>
-          )}
+            {comparison && (
+              <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-100 text-xs font-bold", comparison.color)}>
+                <comparison.icon className="w-3 h-3" />
+                {comparison.text}
+              </div>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -325,7 +347,7 @@ const EarningsView = ({ entries, onAdd, onDelete }: {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Custo Combustível (R$ 0,20/km)</p>
+              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Custo Combustível (R$ {formatCurrency(fuelCostPerKm)}/km)</p>
               <p className="text-xl font-black text-red-500">R$ {formatCurrency(fuelCost, { minimumFractionDigits: 2 })}</p>
             </div>
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
@@ -1466,6 +1488,86 @@ const HistoryView = ({ archives, onManualReset }: {
   );
 };
 
+const LoginView = ({ onLogin }: { onLogin: (email: string) => Promise<void> }) => {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes('@')) {
+      setError('Por favor, informe um e-mail válido.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await onLogin(email);
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro ao verificar seu acesso.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+      <Card className="max-w-md w-full p-8 shadow-xl shadow-slate-200/50 border-none relative overflow-hidden">
+        {/* Background Decor */}
+        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-emerald-50 rounded-full blur-3xl opacity-50" />
+        
+        <div className="relative z-10 space-y-8">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg rotate-3 group hover:rotate-0 transition-transform">
+              <Car className="w-8 h-8" />
+            </div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">Minhas Finanças</h1>
+            <p className="text-slate-500 text-sm font-medium">Controle de ganhos para motoristas parceiros</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <Input 
+                label="Seu E-mail" 
+                type="email" 
+                placeholder="exemplo@email.com"
+                value={email}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                autoFocus
+              />
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 text-xs font-bold animate-in fade-in slide-in-from-top-1">
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full h-12 text-base shadow-lg shadow-slate-900/20"
+              onClick={() => {}} // dummy for button requirements
+            >
+              {loading ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Acessar Aplicativo'
+              )}
+            </Button>
+          </form>
+
+          <div className="pt-6 border-t border-slate-100 text-center">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              Digital Services &bull; 2026
+            </p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -1473,6 +1575,44 @@ export default function App() {
   const [showAllData, setShowAllData] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
+  // Access Control States
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null); // null means checking
+  const [userEmail, setUserEmail] = useState<string>(() => localStorage.getItem('authorized_email') || '');
+  
+  // Access Control Check
+  useEffect(() => {
+    const checkAccess = async () => {
+      const savedEmail = localStorage.getItem('authorized_email');
+      if (savedEmail) {
+        const result = await checkUserAccess(savedEmail);
+        setIsAuthorized(result.authorized);
+        if (!result.authorized) {
+          localStorage.removeItem('authorized_email');
+        }
+      } else {
+        setIsAuthorized(false);
+      }
+    };
+    checkAccess();
+  }, []);
+
+  const handleLogin = async (email: string) => {
+    const result = await checkUserAccess(email);
+    if (result.authorized) {
+      localStorage.setItem('authorized_email', email);
+      setUserEmail(email);
+      setIsAuthorized(true);
+    } else {
+      throw new Error(result.message);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('authorized_email');
+    setIsAuthorized(false);
+    setUserEmail('');
+  };
+
   // State Persistence
   const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>(() => {
     const saved = localStorage.getItem('uber_entries');
@@ -1560,6 +1700,11 @@ export default function App() {
     }
   });
 
+  const [fuelCostPerKm, setFuelCostPerKm] = useState<number>(() => {
+    const saved = localStorage.getItem('fuel_cost_per_km');
+    return saved ? Number(saved) : 0.20;
+  });
+
   useEffect(() => {
     localStorage.setItem('uber_entries', JSON.stringify(earningsEntries));
   }, [earningsEntries]);
@@ -1587,6 +1732,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('monthly_archives', JSON.stringify(archives));
   }, [archives]);
+
+  useEffect(() => {
+    localStorage.setItem('fuel_cost_per_km', fuelCostPerKm.toString());
+  }, [fuelCostPerKm]);
 
   const handleMonthlyReset = (monthToArchive: string) => {
     // Current month data archiving
@@ -2221,6 +2370,18 @@ export default function App() {
 
 
 
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-900/10 border-t-slate-900 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return <LoginView onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* Side Drawer (Mobile/Desktop) */}
@@ -2276,12 +2437,23 @@ export default function App() {
         </nav>
 
         <div className="p-6 border-t border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">W</div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">Wesley</p>
-              <p className="text-xs text-slate-500">Motorista Uber</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">
+                <Car className="w-5 h-5" />
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-sm font-bold text-slate-900 truncate max-w-[120px]">{userEmail.split('@')[0]}</p>
+                <p className="text-[10px] text-slate-500 uppercase font-black tracking-tight">Parceiro Digital</p>
+              </div>
             </div>
+            <button 
+              onClick={handleLogout}
+              className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+              title="Sair"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </aside>
@@ -2301,7 +2473,7 @@ export default function App() {
               </button>
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none mb-1">
-                  {activeTab === 'dashboard' && "Olá, Wesley!"}
+                  {activeTab === 'dashboard' && "Olá, Bem-vindo!"}
                   {activeTab === 'earnings' && "Meus Ganhos"}
                   {activeTab === 'expenses' && "Meus Gastos"}
                   {activeTab === 'bills' && "Minhas Contas"}
@@ -2347,6 +2519,8 @@ export default function App() {
                 })} 
                 onAdd={addEarningsEntry} 
                 onDelete={deleteEarningsEntry} 
+                fuelCostPerKm={fuelCostPerKm}
+                onChangeFuelCost={setFuelCostPerKm}
               />
             )}
             {activeTab === 'expenses' && (
