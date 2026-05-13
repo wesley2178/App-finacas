@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogIn, Car, ShieldAlert } from 'lucide-react';
+import { LogIn, Car, ShieldAlert, ExternalLink } from 'lucide-react';
 import { signInWithGoogle } from '../lib/firebase';
 import { motion } from 'motion/react';
 
@@ -41,16 +41,22 @@ export const LoginView: React.FC = () => {
         </div>
 
         {errorInfo?.code === 'auth/unauthorized-domain' && (
-          <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-xs text-red-800 text-left space-y-2">
+          <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-xs text-red-800 text-left space-y-3">
             <p className="font-bold flex items-center gap-2">
               <ShieldAlert className="w-4 h-4" />
               Domínio não autorizado no Firebase
             </p>
-            <p>Você precisa adicionar os domínios abaixo no Console do Firebase (Authentication {'>'} Settings {'>'} Authorized Domains):</p>
-            <ul className="list-disc list-inside bg-white/50 p-2 rounded-lg font-mono break-all space-y-1 select-all">
-              <li>ais-dev-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</li>
-              <li>ais-pre-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</li>
-            </ul>
+            <p>Se você já adicionou os domínios abaixo no Console do Firebase, aguarde 5 minutos para a atualização entrar em vigor.</p>
+            <div className="bg-white/50 p-2 rounded-lg font-mono break-all space-y-1 select-all border border-red-100/50">
+              <p>ais-dev-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</p>
+              <p>ais-pre-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</p>
+            </div>
+            <button 
+              onClick={() => window.open(window.location.href, '_blank')}
+              className="w-full bg-red-600 text-white py-2 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-700 transition-all text-[11px]"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Abrir em Nova Aba (Recomendado)
+            </button>
           </div>
         )}
 
