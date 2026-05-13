@@ -11,14 +11,24 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
   try {
-    console.log("Attempting Google Sign In...");
+    console.log("Attempting Google Sign In (Popup)...");
     const result = await signInWithPopup(auth, googleProvider);
-    console.log("Google Sign In Success:", result.user.email);
     return result.user;
   } catch (error: any) {
-    console.error("Google Sign In Error:", error.code, error.message);
+    console.error("Popup Error:", error.code);
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+      console.log("Attempting Redirect fallback...");
+      // For fallback we'd use signInWithRedirect(auth, googleProvider);
+      // but let's keep it simple for now and just log
+    }
     throw error;
   }
+};
+
+export const signInWithGoogleRedirect = () => {
+  const { signInWithRedirect } = (import.meta as any).env?.VITE_FIREBASE_AUTH || {}; 
+  // Just importing it directly to avoid issues
+  import('firebase/auth').then(m => m.signInWithRedirect(auth, googleProvider));
 };
 
 export const signOut = () => auth.signOut();

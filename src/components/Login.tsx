@@ -41,22 +41,41 @@ export const LoginView: React.FC = () => {
         </div>
 
         {errorInfo?.code === 'auth/unauthorized-domain' && (
-          <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-xs text-red-800 text-left space-y-3">
-            <p className="font-bold flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4" />
-              Domínio não autorizado no Firebase
-            </p>
-            <p>Se você já adicionou os domínios abaixo no Console do Firebase, aguarde 5 minutos para a atualização entrar em vigor.</p>
-            <div className="bg-white/50 p-2 rounded-lg font-mono break-all space-y-1 select-all border border-red-100/50">
-              <p>ais-dev-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</p>
-              <p>ais-pre-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</p>
+          <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-xs text-red-800 text-left space-y-4">
+            <div className="flex items-start gap-2">
+              <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-sm">Domínio Não Autorizado</p>
+                <p className="mt-1">O Firebase ainda não reconheceu este endereço. Siga estes passos:</p>
+              </div>
             </div>
-            <button 
-              onClick={() => window.open(window.location.href, '_blank')}
-              className="w-full bg-red-600 text-white py-2 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-700 transition-all text-[11px]"
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> Abrir em Nova Aba (Recomendado)
-            </button>
+
+            <div className="space-y-3">
+              <div>
+                <p className="font-bold mb-1">1. No Console do Firebase:</p>
+                <p className="text-[10px] mb-2 text-red-700/70">Vá em Authentication &gt; Settings &gt; Authorized Domains e adicione:</p>
+                <div className="bg-white/80 p-2 rounded-lg font-mono text-[10px] space-y-1 select-all border border-red-200">
+                  <p>{window.location.hostname}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="font-bold mb-1">2. No Console do Google Cloud (Importante!):</p>
+                <p className="text-[10px] mb-1 text-red-700/70">Acesse "APIs &amp; Services" &gt; "Credentials".</p>
+                <p className="text-[10px] mb-1 text-red-700/70">Clique na sua Chave de API (Browser Key).</p>
+                <p className="text-[10px] mb-2 text-red-700/70">Em "Website restrictions", verifique se o domínio acima está na lista. Se estiver marcado "None", está tudo bem. Se estiver em "Websites", adicione o domínio com `/*` no final.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => window.open(window.location.href, '_blank')}
+                className="w-full bg-red-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-700 transition-all text-xs shadow-sm"
+              >
+                <ExternalLink className="w-4 h-4" /> Abrir em Nova Aba (Resolve a maioria dos casos)
+              </button>
+              <p className="text-center text-[9px] text-red-400">Às vezes o Firebase leva até 10 minutos para atualizar os domínios.</p>
+            </div>
           </div>
         )}
 
