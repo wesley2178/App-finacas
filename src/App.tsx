@@ -2190,9 +2190,7 @@ export default function App() {
         </div>
       ) : !user ? (
         <LoginView />
-      ) : (!profile?.isAuthorized && !profile?.isAdmin) ? (
-        <UnAuthorizedView />
-      ) : (
+      ) : (profile?.isAuthorized || profile?.isAdmin || user.email === 'wesley2178@gmail.com') ? (
         <>
           {/* Side Drawer (Mobile/Desktop) */}
           <div className={cn(
@@ -2455,6 +2453,8 @@ export default function App() {
     )}
   </div>
 </>
+) : (
+  <UnAuthorizedView />
 )}
 </div>
 );

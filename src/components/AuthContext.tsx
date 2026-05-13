@@ -41,6 +41,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (firebaseUser) {
         setLoading(true);
+        // Pre-set admin profile immediately if email matches
+        if (firebaseUser.email === ADMIN_EMAIL) {
+          setProfile({
+            email: firebaseUser.email,
+            isAdmin: true,
+            isAuthorized: true,
+            createdAt: new Date().toISOString()
+          });
+        }
+
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         
         // Listen to profile changes real-time
