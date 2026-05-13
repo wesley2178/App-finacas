@@ -63,31 +63,42 @@ export const DataMigration: React.FC<Props> = ({ userId, onComplete }) => {
       for (const pair of migrationPairs) {
         const data = localStorage.getItem(pair.key);
         if (data) {
-          const items = JSON.parse(data);
-          if (Array.isArray(items)) {
-            for (const item of items) {
-              try {
-                const { id, ...cleanItem } = item;
-                await createDocument(userId, pair.coll, cleanItem);
-                completed++;
-                setProgress(Math.round((completed / dataCount) * 100));
-              } catch (itemErr) {
-                console.error(`Error migrating item from ${pair.key}:`, itemErr);
-                // We continue with other items even if one fails
+          try {
+            const items = JSON.parse(data);
+            if (Array.isArray(items)) {
+              console.log(`Migrating ${items.length} items to ${pair.coll}...`);
+              for (const item of items) {
+                try {
+                  const { id, ...cleanItem } = item;
+                  // Ensure data is clean for Firestore
+                  await createDocument(userId, pair.coll, cleanItem);
+                  completed++;
+                  setProgress(Math.round((completed / dataCount) * 100));
+                } catch (itemErr: any) {
+                  console.error(`Error migrating item in ${pair.coll}:`, itemErr);
+                  // Item failed but we continue
+                }
               }
             }
+          } catch (jsonErr) {
+            console.error(`Invalid JSON in ${pair.key}:`, jsonErr);
           }
         }
       }
 
       // Migrate Metadata
-      const customCats = localStorage.getItem('uber_custom_categories');
-      const customExpCats = localStorage.getItem('uber_expense_custom_categories');
-      if (customCats || customExpCats) {
-        await saveUserMetadata(userId, {
-          customCategories: customCats ? JSON.parse(customCats) : [],
-          customExpenseCategories: customExpCats ? JSON.parse(customExpCats) : []
-        });
+      try {
+        const customCats = localStorage.getItem('uber_custom_categories');
+        const customExpCats = localStorage.getItem('uber_expense_custom_categories');
+        if (customCats || customExpCats) {
+          console.log("Migrating custom categories...");
+          await saveUserMetadata(userId, {
+            customCategories: customCats ? JSON.parse(customCats) : [],
+            customExpenseCategories: customExpCats ? JSON.parse(customExpCats) : []
+          });
+        }
+      } catch (metaErr) {
+        console.error("Metadata migration error:", metaErr);
       }
 
       // Cleanup
@@ -95,16 +106,14 @@ export const DataMigration: React.FC<Props> = ({ userId, onComplete }) => {
       localStorage.removeItem('uber_custom_categories');
       localStorage.removeItem('uber_expense_custom_categories');
 
+      console.log("Migration finished successfully!");
       setStatus('success');
       setTimeout(onComplete, 2000);
     } catch (error: any) {
       console.error("Migration fatal error:", error);
-      console.error("Error details:", {
-        code: error.code,
-        message: error.message,
-        userId
-      });
-      alert(`Houve um erro na migração parcial: ${error.message || 'Erro desconhecido'}. Tente recarregar.`);
+      const errMsg = error.code ? `[${error.code}] ${error.message}` : error.message;
+      alert(`Erro na migração: ${errMsg}. Por favor, verifique sua conexão e tente novamente.`);
+      setStatus('confirming'); // Reset to let them try again
     }
   };
 

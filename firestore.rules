@@ -12,33 +12,29 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == 'wesley2178@gmail.com';
+      return isSignedIn() && 
+        (request.auth.token.get('email', '').lower() == 'wesley2178@gmail.com');
     }
 
-    // A user is authorized if they are an admin or have a profile with isAuthorized == true
-    function isAuthorized(userId) {
-      return isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(userId)).data.isAuthorized == true);
-    }
-
-    // Profile rules
+    // User profiles - allow individual access
     match /users/{userId} {
-      // Allow any signed in user to read their own profile
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      
-      allow create: if isOwner(userId) 
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.isAdmin == (request.auth.token.email == 'wesley2178@gmail.com')
-        && request.resource.data.createdAt != null;
-
-      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isAuthorized', 'isAdmin']));
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
     }
 
-    // Subcollections (Earnings, bills, etc)
-    match /users/{userId}/{collectionName}/{docId} {
-      allow read, write: if isOwner(userId) && isAuthorized(userId);
+    // User subcollections (earnings, bills, deposits, expenses, archives, config)
+    match /users/{userId}/{collection}/{docId} {
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
-    // Catch-all deny for any other path
+    // Deep subcollections (if any)
+    match /users/{userId}/{collection}/{allPaths=**} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Global catch-all security
     match /{document=**} {
       allow read, write: if false;
     }

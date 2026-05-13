@@ -1502,9 +1502,9 @@ export default function App() {
   const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>([]);
   const [archives, setArchives] = useState<MonthArchive[]>([]);
 
-  // Subscriptions to Firestore
   useEffect(() => {
-    if (!user || !profile?.isAuthorized) return;
+    if (!user || loading) return;
+    if (!profile?.isAuthorized && !profile?.isAdmin && user.email !== 'wesley2178@gmail.com') return;
 
     const unsubEarnings = subscribeToCollection(user.uid, 'earnings', setEarningsEntries);
     const unsubBills = subscribeToCollection(user.uid, 'bills', setBills);
