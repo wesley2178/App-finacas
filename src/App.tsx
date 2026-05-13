@@ -30,10 +30,7 @@ import {
   Utensils,
   FileText,
   Printer,
-  History,
-  LogOut,
-  Settings,
-  ShieldCheck
+  History
 } from 'lucide-react';
 import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -51,20 +48,6 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense, MonthArchive } from './types';
-import { auth, signOut } from './lib/firebase';
-import { useAuth } from './components/AuthContext';
-import { LoginView } from './components/Login';
-import { UnAuthorizedView } from './components/UnAuthorized';
-import { AdminPanel } from './components/AdminPanel';
-import { DataMigration } from './components/DataMigration';
-import { 
-  subscribeToCollection, 
-  createDocument, 
-  updateDocument, 
-  deleteDocument,
-  saveUserMetadata,
-  getUserMetadata
-} from './lib/firestore';
 
 // --- Types ---
 type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report' | 'history';
@@ -1486,61 +1469,126 @@ const HistoryView = ({ archives, onManualReset }: {
 // --- Main App ---
 
 export default function App() {
-  const { user, profile, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showAllData, setShowAllData] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [migrationChecked, setMigrationChecked] = useState(false);
   
-  // State Synchronization with Firestore
-  const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>([]);
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
-  const [deposits, setDeposits] = useState<SavingsDeposit[]>([]);
-  const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>([]);
-  const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>([]);
-  const [archives, setArchives] = useState<MonthArchive[]>([]);
-
-  useEffect(() => {
-    if (!user || loading) return;
-    if (!profile?.isAuthorized && !profile?.isAdmin && user.email !== 'wesley2178@gmail.com') return;
-
-    const unsubEarnings = subscribeToCollection(user.uid, 'earnings', setEarningsEntries);
-    const unsubBills = subscribeToCollection(user.uid, 'bills', setBills);
-    const unsubDeposits = subscribeToCollection(user.uid, 'deposits', setDeposits);
-    const unsubExpenses = subscribeToCollection(user.uid, 'expenses', setDailyExpenses);
-    const unsubArchives = subscribeToCollection(user.uid, 'archives', setArchives);
-
-    // Initial load for metadata
-    getUserMetadata(user.uid).then(meta => {
-      if (meta) {
-        setCustomCategories(meta.customCategories || []);
-        setCustomExpenseCategories(meta.customExpenseCategories || []);
-      }
-    });
-
-    return () => {
-      unsubEarnings();
-      unsubBills();
-      unsubDeposits();
-      unsubExpenses();
-      unsubArchives();
-    };
-  }, [user, profile]);
-
-  // Sync Categories back to Firestore when they change locally
-  useEffect(() => {
-    if (user && profile?.isAuthorized) {
-      saveUserMetadata(user.uid, {
-        customCategories,
-        customExpenseCategories
-      });
+  // State Persistence
+  const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>(() => {
+    const saved = localStorage.getItem('uber_entries');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((entry: any) => ({
+        ...entry,
+        uberEarnings: entry.uberEarnings ?? entry.earnings ?? 0,
+        pop99Earnings: entry.pop99Earnings ?? 0,
+        otherEarnings: entry.otherEarnings ?? 0,
+        totalEarnings: entry.totalEarnings ?? entry.earnings ?? 0,
+        costs: entry.costs ?? 0,
+        kmDriven: entry.kmDriven ?? 0
+      }));
+    } catch (e) {
+      return [];
     }
-  }, [customCategories, customExpenseCategories, user, profile]);
+  });
 
-  const handleMonthlyReset = async (monthToArchive: string) => {
-    if (!user) return;
+  const [bills, setBills] = useState<Bill[]>(() => {
+    const saved = localStorage.getItem('bills');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('uber_custom_categories');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [deposits, setDeposits] = useState<SavingsDeposit[]>(() => {
+    const saved = localStorage.getItem('deposits');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>(() => {
+    const saved = localStorage.getItem('daily_expenses');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('uber_expense_custom_categories');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [archives, setArchives] = useState<MonthArchive[]>(() => {
+    const saved = localStorage.getItem('monthly_archives');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('uber_entries', JSON.stringify(earningsEntries));
+  }, [earningsEntries]);
+
+  useEffect(() => {
+    localStorage.setItem('bills', JSON.stringify(bills));
+  }, [bills]);
+
+  useEffect(() => {
+    localStorage.setItem('uber_custom_categories', JSON.stringify(customCategories));
+  }, [customCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('deposits', JSON.stringify(deposits));
+  }, [deposits]);
+
+  useEffect(() => {
+    localStorage.setItem('daily_expenses', JSON.stringify(dailyExpenses));
+  }, [dailyExpenses]);
+
+  useEffect(() => {
+    localStorage.setItem('uber_expense_custom_categories', JSON.stringify(customExpenseCategories));
+  }, [customExpenseCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('monthly_archives', JSON.stringify(archives));
+  }, [archives]);
+
+  const handleMonthlyReset = (monthToArchive: string) => {
     // Current month data archiving
     const archiveId = generateId();
     const monthArchive: MonthArchive = {
@@ -1556,24 +1604,25 @@ export default function App() {
 
     // Only archive if there's actually data
     if (monthArchive.earnings.length > 0 || monthArchive.expenses.length > 0 || monthArchive.bills.length > 0) {
-      await createDocument(user.uid, 'archives', monthArchive);
+      setArchives(prev => [monthArchive, ...prev]);
     }
 
-    // Reset data for the new month - In Firestore we'd delete them or they just won't show in current month filter
-    // For simplicity in this app's logic of "resetting", we usually just archive.
-    // However, the app's current logic implies clearing local state. 
-    // In Firebase, we should probably delete the documents or move them.
-    // For now, I'll stick to the app's logic but applied to Firestore.
+    // Reset data for the new month
+    setEarningsEntries([]);
+    setDailyExpenses([]);
     
-    for (const entry of earningsEntries) {
-      await deleteDocument(user.uid, 'earnings', entry.id);
-    }
-    for (const expense of dailyExpenses) {
-      await deleteDocument(user.uid, 'expenses', expense.id);
-    }
-    
-    // Recurring bills rollover handled by the useEffect above
-    
+    // Recurring bills stay, but update their dueDate to the current month/year and reset isPaid
+    setBills(prev => prev.filter(b => b.isRecurring).map(bill => {
+      const currentDueDate = safeParseISO(bill.dueDate);
+      const now = new Date();
+      const newDueDate = new Date(now.getFullYear(), now.getMonth(), currentDueDate.getDate());
+      return {
+        ...bill,
+        dueDate: format(newDueDate, 'yyyy-MM-dd'),
+        isPaid: false
+      };
+    }));
+
     localStorage.setItem('last_monthly_reset', format(new Date(), 'yyyy-MM'));
   };
 
@@ -1645,82 +1694,73 @@ export default function App() {
 
   // --- Handlers ---
 
-  const addEarningsEntry = async (entry: Omit<EarningsEntry, 'id'>) => {
-    if (!user) return;
-    await createDocument(user.uid, 'earnings', entry);
+  const addEarningsEntry = (entry: Omit<EarningsEntry, 'id'>) => {
+    setEarningsEntries(prev => [{ ...entry, id: generateId() }, ...prev]);
   };
 
-  const deleteEarningsEntry = async (id: string) => {
-    if (!user) return;
-    await deleteDocument(user.uid, 'earnings', id);
+  const deleteEarningsEntry = (id: string) => {
+    setEarningsEntries(prev => prev.filter(e => e.id !== id));
   };
 
-  const addBill = async (bill: Omit<Bill, 'id' | 'isPaid'>) => {
-    if (!user) return;
-    await createDocument(user.uid, 'bills', { ...bill, isPaid: false });
+  const addBill = (bill: Omit<Bill, 'id' | 'isPaid'>) => {
+    setBills(prev => [...prev, { ...bill, id: generateId(), isPaid: false }]);
   };
 
-  const toggleBillPaid = async (id: string) => {
-    if (!user) return;
-    const bill = bills.find(b => b.id === id);
-    if (!bill) return;
+  const toggleBillPaid = (id: string) => {
+    setBills(prev => {
+      const bill = prev.find(b => b.id === id);
+      if (!bill) return prev;
 
-    const isMarkingAsPaid = !bill.isPaid;
-    await updateDocument(user.uid, 'bills', id, { isPaid: isMarkingAsPaid });
-    
-    if (isMarkingAsPaid && bill.isRecurring) {
-      const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
-      const alreadyExists = bills.some(b => b.name === bill.name && b.dueDate === nextDueDate);
+      const isMarkingAsPaid = !bill.isPaid;
+      const updated = prev.map(b => b.id === id ? { ...b, isPaid: !b.isPaid } : b);
       
-      if (!alreadyExists) {
-        await createDocument(user.uid, 'bills', {
-          ...bill,
-          dueDate: nextDueDate,
-          isPaid: false,
-          isRecurring: true
-        });
+      // Recurrence logic: if marking as paid AND it's recurring, create a new item for the next month
+      if (isMarkingAsPaid && bill.isRecurring) {
+        const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
+        const alreadyExists = prev.some(b => b.name === bill.name && b.dueDate === nextDueDate);
+        
+        if (!alreadyExists) {
+          return [...updated, {
+            ...bill,
+            id: generateId(),
+            dueDate: nextDueDate,
+            isPaid: false,
+            isRecurring: true // Ensure it continues to recur
+          }];
+        }
       }
-    }
+      
+      return updated;
+    });
   };
 
-  const deleteBill = async (id: string) => {
-    if (!user) return;
-    await deleteDocument(user.uid, 'bills', id);
-    // Also delete associated deposits
-    const associatedDeposits = deposits.filter(d => d.billId === id);
-    for (const d of associatedDeposits) {
-      await deleteDocument(user.uid, 'deposits', d.id);
-    }
+  const deleteBill = (id: string) => {
+    setBills(prev => prev.filter(b => b.id !== id));
+    setDeposits(prev => prev.filter(d => d.billId !== id));
   };
 
-  const updateBill = async (id: string, updates: Partial<Bill>) => {
-    if (!user) return;
-    await updateDocument(user.uid, 'bills', id, updates);
+  const updateBill = (id: string, updates: Partial<Bill>) => {
+    setBills(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
   };
 
-  const addDeposit = async (deposit: Omit<SavingsDeposit, 'id'>) => {
-    if (!user) return;
-    await createDocument(user.uid, 'deposits', deposit);
+  const addDeposit = (deposit: Omit<SavingsDeposit, 'id'>) => {
+    setDeposits(prev => [...prev, { ...deposit, id: generateId() }]);
   };
 
-  const deleteDeposit = async (id: string) => {
-    if (!user) return;
-    await deleteDocument(user.uid, 'deposits', id);
+  const deleteDeposit = (id: string) => {
+    setDeposits(prev => prev.filter(d => d.id !== id));
   };
 
-  const updateDeposit = async (id: string, amount: number) => {
-    if (!user) return;
-    await updateDocument(user.uid, 'deposits', id, { amount });
+  const updateDeposit = (id: string, amount: number) => {
+    setDeposits(prev => prev.map(d => d.id === id ? { ...d, amount } : d));
   };
 
-  const addDailyExpense = async (expense: Omit<DailyExpense, 'id'>) => {
-    if (!user) return;
-    await createDocument(user.uid, 'expenses', expense);
+  const addDailyExpense = (expense: Omit<DailyExpense, 'id'>) => {
+    setDailyExpenses(prev => [{ ...expense, id: generateId() }, ...prev]);
   };
 
-  const deleteDailyExpense = async (id: string) => {
-    if (!user) return;
-    await deleteDocument(user.uid, 'expenses', id);
+  const deleteDailyExpense = (id: string) => {
+    setDailyExpenses(prev => prev.filter(e => e.id !== id));
   };
 
   // --- Calculations ---
@@ -2183,25 +2223,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {loading ? (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <div className="text-center space-y-4">
-            <div className="w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-slate-500 font-bold animate-pulse">Iniciando sistema...</p>
-          </div>
-        </div>
-      ) : !user ? (
-        <LoginView />
-      ) : (profile?.isAuthorized || profile?.isAdmin || user.email === 'wesley2178@gmail.com') ? (
-        <>
-          {user && !migrationChecked && (
-            <DataMigration 
-              userId={user.uid} 
-              onComplete={() => setMigrationChecked(true)} 
-            />
-          )}
-          {/* Side Drawer (Mobile/Desktop) */}
-          <div className={cn(
+      {/* Side Drawer (Mobile/Desktop) */}
+      <div className={cn(
         "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] transition-opacity duration-300",
         isMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       )} onClick={() => setIsMenuOpen(false)} />
@@ -2236,58 +2259,30 @@ export default function App() {
               key={item.id}
               onClick={() => {
                 setActiveTab(item.id);
-                setShowAdminPanel(false);
                 setIsMenuOpen(false);
               }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
-                (activeTab === item.id && !showAdminPanel) 
+                activeTab === item.id 
                   ? "bg-slate-900 text-white font-bold shadow-lg shadow-slate-900/20" 
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <item.icon className={cn("w-5 h-5", (activeTab === item.id && !showAdminPanel) ? "text-white" : "text-slate-400")} />
+              <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-white" : "text-slate-400")} />
               <span className="font-medium">{item.label}</span>
-              {(activeTab === item.id && !showAdminPanel) && <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
+              {activeTab === item.id && <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
             </button>
           ))}
-
-          {profile?.isAdmin && (
-            <button
-              onClick={() => {
-                setShowAdminPanel(true);
-                setIsMenuOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-4",
-                showAdminPanel 
-                  ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/20" 
-                  : "text-indigo-600/70 hover:bg-indigo-50"
-              )}
-            >
-              <ShieldCheck className={cn("w-5 h-5", showAdminPanel ? "text-white" : "text-indigo-400")} />
-              <span className="font-medium">Administração</span>
-              {showAdminPanel && <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
-            </button>
-          )}
         </nav>
 
-        <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-4">
+        <div className="p-6 border-t border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center font-bold text-white uppercase">
-              {user?.email?.[0] || 'U'}
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold text-slate-900 truncate">{user?.email?.split('@')[0]}</p>
-              <p className="text-xs text-slate-500 truncate">{profile?.isAdmin ? 'Administrador' : 'Motorista'}</p>
+            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">W</div>
+            <div>
+              <p className="text-sm font-bold text-slate-900">Wesley</p>
+              <p className="text-xs text-slate-500">Motorista Uber</p>
             </div>
           </div>
-          <button 
-            onClick={() => signOut()}
-            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-red-500 hover:bg-red-50 transition-all border border-transparent hover:border-red-100"
-          >
-            <LogOut className="w-3.5 h-3.5" /> Sair do Aplicativo
-          </button>
         </div>
       </aside>
 
@@ -2306,17 +2301,13 @@ export default function App() {
               </button>
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none mb-1">
-                  {showAdminPanel ? "Administração" : (
-                    <>
-                      {activeTab === 'dashboard' && `Olá, ${user?.email?.split('@')[0]}!`}
-                      {activeTab === 'earnings' && "Meus Ganhos"}
-                      {activeTab === 'expenses' && "Meus Gastos"}
-                      {activeTab === 'bills' && "Minhas Contas"}
-                      {activeTab === 'savings' && "Minhas Caixinhas"}
-                      {activeTab === 'report' && "Relatório"}
-                      {activeTab === 'history' && "Histórico Mensal"}
-                    </>
-                  )}
+                  {activeTab === 'dashboard' && "Olá, Wesley!"}
+                  {activeTab === 'earnings' && "Meus Ganhos"}
+                  {activeTab === 'expenses' && "Meus Gastos"}
+                  {activeTab === 'bills' && "Minhas Contas"}
+                  {activeTab === 'savings' && "Minhas Caixinhas"}
+                  {activeTab === 'report' && "Relatório"}
+                  {activeTab === 'history' && "Histórico Mensal"}
                 </h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">
                   {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
@@ -2344,13 +2335,9 @@ export default function App() {
         {/* Main Content */}
         <main className="flex-1 pb-32 pt-6 px-4 md:px-8 max-w-6xl mx-auto w-full">
           <ErrorBoundary>
-            {showAdminPanel ? (
-              <AdminPanel />
-            ) : (
-              <>
-                {activeTab === 'dashboard' && renderDashboard()}
-                {activeTab === 'earnings' && (
-                  <EarningsView 
+            {activeTab === 'dashboard' && renderDashboard()}
+            {activeTab === 'earnings' && (
+              <EarningsView 
                 entries={earningsEntries.filter(e => {
                   if (showAllData) return true;
                   if (typeof e.date !== 'string') return false;
@@ -2426,13 +2413,11 @@ export default function App() {
                 }}
               />
             )}
-          </>
-        )}
-      </ErrorBoundary>
-    </main>
+          </ErrorBoundary>
+        </main>
+      </div>
 
-    {/* Bottom Navigation (Mobile Dock) */}
-    {!showAdminPanel && (
+      {/* Bottom Navigation (Mobile Dock) */}
       <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-sm h-16 bg-slate-900/95 backdrop-blur-lg border border-white/10 rounded-2xl shadow-2xl z-50 px-4 flex items-center justify-between">
         {( [
           { id: 'dashboard', icon: LayoutDashboard },
@@ -2458,12 +2443,6 @@ export default function App() {
           </button>
         ))}
       </nav>
-    )}
-  </div>
-</>
-) : (
-  <UnAuthorizedView />
-)}
-</div>
-);
+    </div>
+  );
 }
