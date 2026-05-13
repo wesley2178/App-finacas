@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public user information and authorization status",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "isAuthorized": { "type": "boolean" },
+        "isAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "isAuthorized", "isAdmin"]
+    },
+    "EarningsEntry": {
+      "title": "Earnings Entry",
+      "description": "Daily earnings record",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "uberEarnings": { "type": "number" },
+        "pop99Earnings": { "type": "number" },
+        "otherEarnings": { "type": "number" },
+        "totalEarnings": { "type": "number" },
+        "costs": { "type": "number" },
+        "kmDriven": { "type": "number" }
+      }
+    },
+    "Bill": {
+      "title": "Bill",
+      "description": "Monthly or recurring bill",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "isRecurring": { "type": "boolean" },
+        "isPaid": { "type": "boolean" },
+        "category": { "type": "string" }
+      }
+    },
+    "SavingsDeposit": {
+      "title": "Savings Deposit",
+      "description": "Deposit into a savings goal",
+      "type": "object",
+      "properties": {
+        "billId": { "type": "string" },
+        "date": { "type": "string" },
+        "amount": { "type": "number" }
+      }
+    },
+    "DailyExpense": {
+      "title": "Daily Expense",
+      "description": "Personal daily expense",
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "value": { "type": "number" },
+        "date": { "type": "string" },
+        "category": { "type": "string" }
+      }
+    },
+    "MonthArchive": {
+      "title": "Month Archive",
+      "description": "Consolidated monthly data",
+      "type": "object",
+      "properties": {
+        "month": { "type": "string" },
+        "earnings": { "type": "array" },
+        "expenses": { "type": "array" },
+        "bills": { "type": "array" },
+        "totalEarnings": { "type": "number" },
+        "totalExpenses": { "type": "number" },
+        "totalBills": { "type": "number" }
+      }
+    },
+    "UserMetadata": {
+      "title": "User Metadata",
+      "description": "User specific configurations like custom categories",
+      "type": "object",
+      "properties": {
+        "customCategories": { "type": "array" },
+        "customExpenseCategories": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Root user document"
+    },
+    "users/{userId}/earnings/{id}": {
+      "schema": "EarningsEntry",
+      "description": "User earnings"
+    },
+    "users/{userId}/bills/{id}": {
+      "schema": "Bill",
+      "description": "User bills"
+    },
+    "users/{userId}/deposits/{id}": {
+      "schema": "SavingsDeposit",
+      "description": "User savings deposits"
+    },
+    "users/{userId}/expenses/{id}": {
+      "schema": "DailyExpense",
+      "description": "User personal expenses"
+    },
+    "users/{userId}/archives/{id}": {
+      "schema": "MonthArchive",
+      "description": "User monthly archives"
+    },
+    "users/{userId}/config/categories": {
+      "schema": "UserMetadata",
+      "description": "User custom categories"
+    }
+  }
+}
