@@ -1,17 +1,26 @@
 import React from 'react';
-import { LogIn, Car } from 'lucide-react';
+import { LogIn, Car, ShieldAlert } from 'lucide-react';
 import { signInWithGoogle } from '../lib/firebase';
 import { motion } from 'motion/react';
 
 export const LoginView: React.FC = () => {
+  const [errorInfo, setErrorInfo] = React.useState<{ code: string; message: string } | null>(null);
+
   const handleLogin = async () => {
+    setErrorInfo(null);
     try {
       await signInWithGoogle();
     } catch (error: any) {
       console.error("Full Login Error:", error);
-      const errorMessage = error.message || "Erro desconhecido";
       const errorCode = error.code || "unknown";
-      alert(`Erro ao fazer login (${errorCode}): ${errorMessage}\n\nSe o problema persistir, tente abrir o aplicativo em uma nova aba fora do editor.`);
+      const errorMessage = error.message || "Erro desconhecido";
+      setErrorInfo({ code: errorCode, message: errorMessage });
+      
+      if (errorCode === 'auth/unauthorized-domain') {
+        // Just keeping it in state to show in UI
+      } else {
+        alert(`Erro ao fazer login (${errorCode}): ${errorMessage}`);
+      }
     }
   };
 
@@ -30,6 +39,20 @@ export const LoginView: React.FC = () => {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Minhas Finanças Pro</h1>
           <p className="text-slate-500">Gestão financeira completa para motoristas de aplicativo.</p>
         </div>
+
+        {errorInfo?.code === 'auth/unauthorized-domain' && (
+          <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-xs text-red-800 text-left space-y-2">
+            <p className="font-bold flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4" />
+              Domínio não autorizado no Firebase
+            </p>
+            <p>Você precisa adicionar os domínios abaixo no Console do Firebase (Authentication {'>'} Settings {'>'} Authorized Domains):</p>
+            <ul className="list-disc list-inside bg-white/50 p-2 rounded-lg font-mono break-all space-y-1 select-all">
+              <li>ais-dev-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</li>
+              <li>ais-pre-sk7qjhf2ckuecebgwthzse-128642766463.us-west1.run.app</li>
+            </ul>
+          </div>
+        )}
 
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-sm text-slate-600 text-left">
           <p className="font-bold mb-1">Acesso Controlado:</p>
