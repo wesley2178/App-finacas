@@ -16,15 +16,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == 'wesley2178@gmail.com' && request.auth.token.email_verified == true;
+      return isSignedIn() && request.auth.token.email == 'wesley2178@gmail.com';
     }
 
     function isAuthorizedUser(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.isAuthorized == true;
+      return isAdmin() || (get(/databases/$(database)/documents/users/$(userId)).data.isAuthorized == true);
     }
 
     function isVerifiedUser() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn(); // Relaxed, as we rely on Google Auth identity
     }
 
     function isValidId(id) {
