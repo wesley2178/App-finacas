@@ -7,8 +7,11 @@ export const LoginView: React.FC = () => {
   const handleLogin = async () => {
     try {
       await signInWithGoogle();
-    } catch (error) {
-      alert("Erro ao fazer login com Google. Tente novamente.");
+    } catch (error: any) {
+      console.error("Full Login Error:", error);
+      const errorMessage = error.message || "Erro desconhecido";
+      const errorCode = error.code || "unknown";
+      alert(`Erro ao fazer login (${errorCode}): ${errorMessage}\n\nSe o problema persistir, tente abrir o aplicativo em uma nova aba fora do editor.`);
     }
   };
 

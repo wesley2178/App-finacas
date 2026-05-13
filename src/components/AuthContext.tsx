@@ -28,42 +28,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeProfile: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Clean up previous profile listener
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
       setUser(firebaseUser);
       
       if (firebaseUser) {
+        setLoading(true);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         
         // Listen to profile changes real-time
-        const unsubscribeProfile = onSnapshot(userDocRef, async (docSnap) => {
+        unsubscribeProfile = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
             setProfile(docSnap.data() as UserProfile);
           } else {
             // First time sign in, create profile
-            const isAdmin = firebaseUser.email === ADMIN_EMAIL;
-            const newProfile = {
-              email: firebaseUser.email || '',
-              isAuthorized: isAdmin, // Admin is authorized by default
-              isAdmin: isAdmin,
-              createdAt: serverTimestamp()
-            };
-            await setDoc(userDocRef, newProfile);
-            setProfile(newProfile as any);
+            try {
+              const isAdmin = firebaseUser.email === ADMIN_EMAIL;
+              const newProfile = {
+                email: firebaseUser.email || '',
+                isAuthorized: isAdmin, // Admin is authorized by default
+                isAdmin: isAdmin,
+                createdAt: serverTimestamp()
+              };
+              await setDoc(userDocRef, newProfile);
+              // Profile state will be updated by the next snapshot
+            } catch (err: any) {
+              console.error("Error creating profile:", err);
+              // If it's a permission error, we should show something or sign out
+              if (err.code === 'permission-denied') {
+                alert("Erro de permissão ao criar perfil. Verifique se seu e-mail está verificado.");
+              }
+            }
           }
           setLoading(false);
         }, (error) => {
           console.error("Profile listener error:", error);
           setLoading(false);
         });
-
-        return () => unsubscribeProfile();
       } else {
         setProfile(null);
         setLoading(false);
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
   return (

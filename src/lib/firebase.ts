@@ -11,10 +11,12 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
   try {
+    console.log("Attempting Google Sign In...");
     const result = await signInWithPopup(auth, googleProvider);
+    console.log("Google Sign In Success:", result.user.email);
     return result.user;
-  } catch (error) {
-    console.error("Error signing in with Google", error);
+  } catch (error: any) {
+    console.error("Google Sign In Error:", error.code, error.message);
     throw error;
   }
 };
