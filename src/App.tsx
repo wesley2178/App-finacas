@@ -56,6 +56,7 @@ import { useAuth } from './components/AuthContext';
 import { LoginView } from './components/Login';
 import { UnAuthorizedView } from './components/UnAuthorized';
 import { AdminPanel } from './components/AdminPanel';
+import { DataMigration } from './components/DataMigration';
 import { 
   subscribeToCollection, 
   createDocument, 
@@ -1490,6 +1491,7 @@ export default function App() {
   const [showAllData, setShowAllData] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [migrationChecked, setMigrationChecked] = useState(false);
   
   // State Synchronization with Firestore
   const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>([]);
@@ -2192,6 +2194,12 @@ export default function App() {
         <LoginView />
       ) : (profile?.isAuthorized || profile?.isAdmin || user.email === 'wesley2178@gmail.com') ? (
         <>
+          {user && !migrationChecked && (
+            <DataMigration 
+              userId={user.uid} 
+              onComplete={() => setMigrationChecked(true)} 
+            />
+          )}
           {/* Side Drawer (Mobile/Desktop) */}
           <div className={cn(
         "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] transition-opacity duration-300",
