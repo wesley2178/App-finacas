@@ -2,16 +2,15 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Access control collection
+    // Permissive for testing access control
     match /authorized_users/{userId} {
-      // Allow read access to verify user status
       allow read: if true;
       allow write: if false;
+    }
+    
+    // Default deny for others
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

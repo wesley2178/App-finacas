@@ -19,35 +19,45 @@ export { collection, query, where, getDocs, limit, serverTimestamp };
 export async function checkUserAccess(email: string): Promise<{ authorized: boolean; message?: string }> {
   try {
     const cleanEmail = email.toLowerCase().trim();
-    console.log('Checking access for:', cleanEmail);
+    console.log('Firebase: Verificando acesso para:', cleanEmail);
     
-    // Query only by email first to be more resilient
+    // 1. Verificar se a coleção existe e é acessível
+    const usersCollection = collection(db, 'authorized_users');
+    
+    // 2. Query por e-mail
     const q = query(
-      collection(db, 'authorized_users'),
+      usersCollection,
       where('email', '==', cleanEmail),
       limit(1)
     );
     
     const querySnapshot = await getDocs(q);
-    console.log('Query completed. Empty:', querySnapshot.empty);
     
     if (!querySnapshot.empty) {
       const userData = querySnapshot.docs[0].data();
-      console.log('User data found:', userData);
+      console.log('Firebase: Usuário encontrado:', userData);
       
       if (userData.active === true) {
-        console.log('User is active');
         return { authorized: true };
       } else {
-        console.log('User found but not active');
-        return { authorized: false, message: 'Seu acesso ainda não foi liberado (conta inativa).' };
+        return { authorized: false, message: 'Seu acesso está inativo (active: false).' };
       }
     } else {
-      console.log('No such user found in authorized_users with email:', cleanEmail);
-      return { authorized: false, message: 'Seu acesso ainda não foi liberado.' };
+      console.log('Firebase: Nenhum documento encontrado para este e-mail.');
+      return { authorized: false, message: 'E-mail não cadastrado ou acesso pendente.' };
     }
   } catch (error: any) {
-    console.error('Error checking user access:', error);
-    return { authorized: false, message: `Erro de conexão: ${error.message || 'Verifique sua internet'}` };
+    console.error('Firebase Error:', error);
+    let errorMsg = 'Erro de conexão com o banco de dados.';
+    
+    if (error.code === 'permission-denied') {
+      errorMsg = 'Erro de permissão no Firebase (verifique as Rules).';
+    } else if (error.message && error.message.includes('offline')) {
+      errorMsg = 'Você parece estar offline.';
+    } else if (error.code === 'not-found') {
+       errorMsg = 'Coleção authorized_users não encontrada.';
+    }
+    
+    return { authorized: false, message: `${errorMsg} (Detalhe: ${error.code || error.message})` };
   }
 }

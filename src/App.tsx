@@ -1495,7 +1495,8 @@ const LoginView = ({ onLogin }: { onLogin: (email: string) => Promise<void> }) =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes('@')) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       setError('Por favor, informe um e-mail válido.');
       return;
     }
@@ -1503,8 +1504,10 @@ const LoginView = ({ onLogin }: { onLogin: (email: string) => Promise<void> }) =
     setLoading(true);
     setError(null);
     try {
-      await onLogin(email);
+      console.log('Tentando login com:', cleanEmail);
+      await onLogin(cleanEmail);
     } catch (err: any) {
+      console.error('Erro no login:', err);
       setError(err.message || 'Ocorreu um erro ao verificar seu acesso.');
     } finally {
       setLoading(false);
@@ -1534,12 +1537,13 @@ const LoginView = ({ onLogin }: { onLogin: (email: string) => Promise<void> }) =
                 placeholder="exemplo@email.com"
                 value={email}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                disabled={loading}
                 autoFocus
               />
               {error && (
                 <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 text-xs font-bold animate-in fade-in slide-in-from-top-1">
                   <XCircle className="w-4 h-4 shrink-0" />
-                  {error}
+                  <span className="flex-1">{error}</span>
                 </div>
               )}
             </div>
@@ -1547,10 +1551,13 @@ const LoginView = ({ onLogin }: { onLogin: (email: string) => Promise<void> }) =
             <Button 
               type="submit" 
               className="w-full h-12 text-base shadow-lg shadow-slate-900/20"
-              onClick={() => {}} // dummy for button requirements
+              disabled={loading}
             >
               {loading ? (
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Verificando...</span>
+                </div>
               ) : (
                 'Acessar Aplicativo'
               )}
@@ -1559,7 +1566,7 @@ const LoginView = ({ onLogin }: { onLogin: (email: string) => Promise<void> }) =
 
           <div className="pt-6 border-t border-slate-100 text-center">
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-              Digital Services &bull; 2026
+              Acesso Restrito &bull; Verificação via Firestore
             </p>
           </div>
         </div>
