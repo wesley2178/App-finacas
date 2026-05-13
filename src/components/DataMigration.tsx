@@ -66,13 +66,15 @@ export const DataMigration: React.FC<Props> = ({ userId, onComplete }) => {
           const items = JSON.parse(data);
           if (Array.isArray(items)) {
             for (const item of items) {
-              // Remove old local ID to let Firestore generate its own or use it if wanted
-              // We'll keep it for continuity but createDocument uses addDoc which generates new
-              // Let's use setDoc if we want to preserve IDs, but addDoc is safer for now.
-              const { id, ...cleanItem } = item;
-              await createDocument(userId, pair.coll, cleanItem);
-              completed++;
-              setProgress(Math.round((completed / dataCount) * 100));
+              try {
+                const { id, ...cleanItem } = item;
+                await createDocument(userId, pair.coll, cleanItem);
+                completed++;
+                setProgress(Math.round((completed / dataCount) * 100));
+              } catch (itemErr) {
+                console.error(`Error migrating item from ${pair.key}:`, itemErr);
+                // We continue with other items even if one fails
+              }
             }
           }
         }
@@ -95,9 +97,14 @@ export const DataMigration: React.FC<Props> = ({ userId, onComplete }) => {
 
       setStatus('success');
       setTimeout(onComplete, 2000);
-    } catch (error) {
-      console.error("Migration error:", error);
-      alert("Houve um erro na migração parcial. Tente recarregar.");
+    } catch (error: any) {
+      console.error("Migration fatal error:", error);
+      console.error("Error details:", {
+        code: error.code,
+        message: error.message,
+        userId
+      });
+      alert(`Houve um erro na migração parcial: ${error.message || 'Erro desconhecido'}. Tente recarregar.`);
     }
   };
 

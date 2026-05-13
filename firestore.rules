@@ -2,11 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Catch-all deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
+    // Global helpers
     function isSignedIn() {
       return request.auth != null;
     }
@@ -19,50 +15,32 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email == 'wesley2178@gmail.com';
     }
 
-    function isAuthorizedUser(userId) {
-      return isAdmin() || (get(/databases/$(database)/documents/users/$(userId)).data.isAuthorized == true);
+    // A user is authorized if they are an admin or have a profile with isAuthorized == true
+    function isAuthorized(userId) {
+      return isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(userId)).data.isAuthorized == true);
     }
 
-    function isVerifiedUser() {
-      return isSignedIn(); // Relaxed, as we rely on Google Auth identity
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // User profiles
+    // Profile rules
     match /users/{userId} {
-      // Users can read their own profile
-      // Admin can read all profiles to authorize them
-      allow read: if isOwner(userId) || isAdmin();
+      // Allow any signed in user to read their own profile
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       
-      // Allow creation of profile on first sign-in
       allow create: if isOwner(userId) 
-        && isVerifiedUser()
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.isAdmin == (request.auth.token.email == 'wesley2178@gmail.com')
-        && request.resource.data.isAuthorized == (request.auth.token.email == 'wesley2178@gmail.com')
-        && request.resource.data.createdAt == request.time;
+        && request.resource.data.createdAt != null;
 
-      // Admin can update isAuthorized
-      allow update: if isAdmin() 
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isAuthorized']);
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isAuthorized', 'isAdmin']));
     }
 
-    // User data subcollections
+    // Subcollections (Earnings, bills, etc)
     match /users/{userId}/{collectionName}/{docId} {
-      // Strict isolation: User can only access their own data
-      // Only if authorized
-      allow read, write: if isOwner(userId) && (isAuthorizedUser(userId) || isAdmin());
-      
-      // Specifically for the subcollections
-      match /earnings/{id} { allow read, write: if isOwner(userId) && (isAuthorizedUser(userId) || isAdmin()); }
-      match /bills/{id} { allow read, write: if isOwner(userId) && (isAuthorizedUser(userId) || isAdmin()); }
-      match /deposits/{id} { allow read, write: if isOwner(userId) && (isAuthorizedUser(userId) || isAdmin()); }
-      match /expenses/{id} { allow read, write: if isOwner(userId) && (isAuthorizedUser(userId) || isAdmin()); }
-      match /archives/{id} { allow read, write: if isOwner(userId) && (isAuthorizedUser(userId) || isAdmin()); }
-      match /config/categories { allow read, write: if isOwner(userId) && (isAuthorizedUser(userId) || isAdmin()); }
+      allow read, write: if isOwner(userId) && isAuthorized(userId);
+    }
+
+    // Catch-all deny for any other path
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
