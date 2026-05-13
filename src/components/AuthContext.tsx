@@ -46,7 +46,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Listen to profile changes real-time
         unsubscribeProfile = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
+            const data = docSnap.data() as UserProfile;
+            // Fallback forced check for admin
+            if (firebaseUser.email === ADMIN_EMAIL && (!data.isAdmin || !data.isAuthorized)) {
+              setProfile({ ...data, isAdmin: true, isAuthorized: true });
+            } else {
+              setProfile(data);
+            }
           } else {
             // First time sign in, create profile
             try {

@@ -2190,7 +2190,7 @@ export default function App() {
         </div>
       ) : !user ? (
         <LoginView />
-      ) : !profile?.isAuthorized ? (
+      ) : (!profile?.isAuthorized && !profile?.isAdmin) ? (
         <UnAuthorizedView />
       ) : (
         <>
