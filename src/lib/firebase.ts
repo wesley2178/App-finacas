@@ -18,22 +18,36 @@ export { collection, query, where, getDocs, limit, serverTimestamp };
 
 export async function checkUserAccess(email: string): Promise<{ authorized: boolean; message?: string }> {
   try {
+    const cleanEmail = email.toLowerCase().trim();
+    console.log('Checking access for:', cleanEmail);
+    
+    // Query only by email first to be more resilient
     const q = query(
       collection(db, 'authorized_users'),
-      where('email', '==', email.toLowerCase().trim()),
-      where('active', '==', true),
+      where('email', '==', cleanEmail),
       limit(1)
     );
     
     const querySnapshot = await getDocs(q);
+    console.log('Query completed. Empty:', querySnapshot.empty);
     
     if (!querySnapshot.empty) {
-      return { authorized: true };
+      const userData = querySnapshot.docs[0].data();
+      console.log('User data found:', userData);
+      
+      if (userData.active === true) {
+        console.log('User is active');
+        return { authorized: true };
+      } else {
+        console.log('User found but not active');
+        return { authorized: false, message: 'Seu acesso ainda não foi liberado (conta inativa).' };
+      }
     } else {
+      console.log('No such user found in authorized_users with email:', cleanEmail);
       return { authorized: false, message: 'Seu acesso ainda não foi liberado.' };
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error checking user access:', error);
-    return { authorized: false, message: 'Erro ao verificar acesso. Tente novamente.' };
+    return { authorized: false, message: `Erro de conexão: ${error.message || 'Verifique sua internet'}` };
   }
 }

@@ -9,12 +9,8 @@ service cloud.firestore {
 
     // Access control collection
     match /authorized_users/{userId} {
-      // Allow searching for a specific user document by email.
-      // Since no Auth is used, we allow read access but recommend querying by email.
-      // We limit to 'list' so the app can use a query with 'where'.
-      // We block 'get' (direct ID access) and 'write' to protect the list.
-      allow list: if true;
-      allow get: if false;
+      // Allow read access to verify user status
+      allow read: if true;
       allow write: if false;
     }
   }
