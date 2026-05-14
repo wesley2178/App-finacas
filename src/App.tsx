@@ -1731,9 +1731,6 @@ function AppContent() {
   useEffect(() => {
     if (isWesley && user && initialSyncDone) {
       const runMigration = async () => {
-        const migrated = localStorage.getItem('wesley_migrated_to_firestore');
-        if (migrated === 'true') return;
-
         const batch = writeBatch(db);
         let hasData = false;
 
@@ -1742,9 +1739,9 @@ function AppContent() {
         const localDeposits = JSON.parse(localStorage.getItem('deposits') || '[]');
         const localExpenses = JSON.parse(localStorage.getItem('daily_expenses') || '[]');
         const localArchives = JSON.parse(localStorage.getItem('monthly_archives') || '[]');
+        const localFuel = localStorage.getItem('fuel_cost_per_km');
 
-        // Check if Firestore actually has data first to avoid overwriting or duplicates if migration failed mid-way
-        // (Though with onSnapshot it's tricky, but lets assume if 0 entries in Firestore, we migrate)
+        // Granular migration: only migrate if Firestore collection is empty and LocalStorage has data
         if (earningsEntries.length === 0 && localEntries.length > 0) {
           localEntries.forEach((e: any) => {
             const d = doc(collection(db, 'uber_entries'), e.id || generateId());
@@ -1753,21 +1750,40 @@ function AppContent() {
           hasData = true;
         }
         
-        // Similar for others... (Simplified for Wesley)
         if (bills.length === 0 && localBills.length > 0) {
           localBills.forEach((b: any) => batch.set(doc(collection(db, 'bills'), b.id || generateId()), b));
           hasData = true;
         }
 
+        if (dailyExpenses.length === 0 && localExpenses.length > 0) {
+          localExpenses.forEach((e: any) => batch.set(doc(collection(db, 'daily_expenses'), e.id || generateId()), e));
+          hasData = true;
+        }
+
+        if (deposits.length === 0 && localDeposits.length > 0) {
+          localDeposits.forEach((d: any) => batch.set(doc(collection(db, 'deposits'), d.id || generateId()), d));
+          hasData = true;
+        }
+
+        if (archives.length === 0 && localArchives.length > 0) {
+          localArchives.forEach((a: any) => batch.set(doc(collection(db, 'monthly_archives'), a.id || generateId()), a));
+          hasData = true;
+        }
+
+        // Migrate settings if context is still at default
+        if (fuelCostPerKm === 0.20 && localFuel) {
+          batch.set(doc(db, getSettingsPath(user.email, user.uid)), { fuelCostPerKm: Number(localFuel) }, { merge: true });
+          hasData = true;
+        }
+
         if (hasData) {
           await batch.commit();
-          localStorage.setItem('wesley_migrated_to_firestore', 'true');
-          console.log("Migration to Firestore complete for Wesley");
+          console.log("Migration to Firestore triggered for missing Wesley data");
         }
       };
       runMigration();
     }
-  }, [isWesley, user, initialSyncDone, earningsEntries.length, bills.length]);
+  }, [isWesley, user, initialSyncDone, earningsEntries.length, bills.length, dailyExpenses.length, deposits.length, archives.length]);
 
   const handleMonthlyReset = async (monthToArchive: string) => {
     if (!user) return;
