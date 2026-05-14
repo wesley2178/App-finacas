@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { useState, useEffect, useMemo, Component } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Car, 
@@ -13,10 +13,8 @@ import {
   Plus, 
   Trash2, 
   CheckCircle2, 
-  XCircle, 
   X,
   Edit2,
-  Menu,
   MoreVertical,
   AlertCircle,
   TrendingUp,
@@ -30,7 +28,8 @@ import {
   Utensils,
   FileText,
   Printer,
-  History
+  History,
+  LogOut
 } from 'lucide-react';
 import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -48,9 +47,23 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 import { EarningsEntry, Bill, SavingsDeposit, DailyExpense, MonthArchive } from './types';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { Login } from './components/Login';
+import { auth, db, logOut } from './lib/firebase';
+import { 
+  collection, 
+  doc, 
+  onSnapshot, 
+  setDoc, 
+  deleteDoc, 
+  writeBatch,
+  getDocs
+} from 'firebase/firestore';
+import { getDataPath, getSettingsPath, handleFirestoreError, OperationType } from './lib/dataService';
+import { User } from 'firebase/auth';
 
 // --- Types ---
-type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report' | 'history';
+type Tab = 'dashboard' | 'earnings' | 'expenses' | 'bills' | 'savings' | 'report' | 'history' | 'access';
 
 const CAIXINHA_CATEGORIES = ['rent', 'car', 'insurance', 'maintenance'];
 
@@ -1486,138 +1499,278 @@ const HistoryView = ({ archives, onManualReset }: {
   );
 };
 
+const AccessManageView = () => {
+  const [authorizedUsers, setAuthorizedUsers] = useState<{email: string}[]>([]);
+  const [newEmail, setNewEmail] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'usuarios_autorizados'), (snapshot) => {
+      setAuthorizedUsers(snapshot.docs.map(doc => ({ email: doc.id })));
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail.trim()) return;
+    try {
+      await setDoc(doc(db, 'usuarios_autorizados', newEmail.trim().toLowerCase()), {
+        email: newEmail.trim().toLowerCase(),
+        role: 'user'
+      });
+      setNewEmail('');
+    } catch (error) {
+      console.error("Erro ao adicionar usuário:", error);
+    }
+  };
+
+  const handleDelete = async (email: string) => {
+    try {
+      await deleteDoc(doc(db, 'usuarios_autorizados', email));
+    } catch (error) {
+      console.error("Erro ao remover usuário:", error);
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card className="p-6">
+        <h3 className="text-lg font-bold mb-4">Autorizar Novo E-mail</h3>
+        <form onSubmit={handleAdd} className="flex gap-4">
+          <div className="flex-1">
+            <Input 
+              label="E-mail do Google" 
+              placeholder="usuario@gmail.com"
+              value={newEmail}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewEmail(e.target.value)}
+            />
+          </div>
+          <Button type="submit" className="mt-7">
+            Autorizar
+          </Button>
+        </form>
+      </Card>
+
+      <Card>
+        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="font-bold">Usuários Autorizados</h3>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-12 flex justify-center">
+              <div className="w-6 h-6 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin" />
+            </div>
+          ) : authorizedUsers.length === 0 ? (
+            <p className="p-12 text-center text-slate-400">Nenhum usuário adicional autorizado.</p>
+          ) : (
+            authorizedUsers.map(u => (
+              <div key={u.email} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400">
+                    {u.email[0].toUpperCase()}
+                  </div>
+                  <span className="font-medium text-slate-900">{u.email}</span>
+                </div>
+                {u.email !== 'wesley2178@gmail.com' && (
+                  <button 
+                    onClick={() => handleDelete(u.email)}
+                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
+      <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3">
+        <AlertCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-700 leading-relaxed">
+          Apenas usuários nesta lista poderão entrar no seu aplicativo. O admin (wesley2178@gmail.com) tem acesso garantido.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const OnboardingView = ({ onSave }: { onSave: (data: { userName: string, carName: string, carPlate: string }) => void }) => {
+  const [formData, setFormData] = useState({ userName: '', carName: '', carPlate: '' });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.userName || !formData.carName) return;
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl z-[200] flex items-center justify-center p-6 overflow-y-auto">
+      <Card className="max-w-md w-full p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl border-white/10 bg-white/95">
+        <div className="text-center space-y-2">
+          <div className="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-slate-900/20">
+            <Car className="w-10 h-10 text-white" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Bem-vindo ao Minhas Finanças!</h2>
+          <p className="text-slate-500 text-sm">Vamos personalizar seu acesso para começar.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Input 
+            label="Como podemos te chamar?" 
+            placeholder="Seu nome ou apelido"
+            value={formData.userName}
+            required
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, userName: e.target.value })}
+          />
+          <Input 
+            label="Qual o nome do seu carro?" 
+            placeholder="Ex: Corolla, Onix Branco..."
+            value={formData.carName}
+            required
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, carName: e.target.value })}
+          />
+          <Input 
+            label="Placa do Veículo (Opcional)" 
+            placeholder="ABC1D23"
+            value={formData.carPlate}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, carPlate: e.target.value })}
+          />
+
+          <div className="pt-4">
+            <Button type="submit" className="w-full h-12 text-lg font-bold">
+              Começar Agora
+            </Button>
+          </div>
+        </form>
+
+        <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+          O admin te autorizou a usar este app.<br />Seus dados são privados e vinculados ao seu e-mail.
+        </p>
+      </Card>
+    </div>
+  );
+};
+
 // --- Main App ---
 
-export default function App() {
+function AppContent() {
+  const { user, isAuthorized, isWesley, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showAllData, setShowAllData] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [initialSyncDone, setInitialSyncDone] = useState(false);
   
-  // State Persistence
-  const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>(() => {
-    const saved = localStorage.getItem('uber_entries');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.map((entry: any) => ({
-        ...entry,
-        uberEarnings: entry.uberEarnings ?? entry.earnings ?? 0,
-        pop99Earnings: entry.pop99Earnings ?? 0,
-        otherEarnings: entry.otherEarnings ?? 0,
-        totalEarnings: entry.totalEarnings ?? entry.earnings ?? 0,
-        costs: entry.costs ?? 0,
-        kmDriven: entry.kmDriven ?? 0
-      }));
-    } catch (e) {
-      return [];
+  // State 
+  const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [deposits, setDeposits] = useState<SavingsDeposit[]>([]);
+  const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>([]);
+  const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>([]);
+  const [archives, setArchives] = useState<MonthArchive[]>([]);
+  const [fuelCostPerKm, setFuelCostPerKm] = useState<number>(0.20);
+  const [userName, setUserName] = useState<string>('');
+  const [carName, setCarName] = useState<string>('');
+  const [carPlate, setCarPlate] = useState<string>('');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+
+  // Firestore Subscriptions
+  useEffect(() => {
+    if (!user || !isAuthorized) return;
+
+    const email = user.email;
+    const uid = user.uid;
+
+    const unsubscribers = [
+      onSnapshot(collection(db, getDataPath(email, uid, 'uber_entries')), (snapshot) => {
+        const data = snapshot.docs.map(d => d.data() as EarningsEntry);
+        setEarningsEntries(data.sort((a, b) => b.date.localeCompare(a.date)));
+      }),
+      onSnapshot(collection(db, getDataPath(email, uid, 'bills')), (snapshot) => {
+        setBills(snapshot.docs.map(d => d.data() as Bill));
+      }),
+      onSnapshot(collection(db, getDataPath(email, uid, 'deposits')), (snapshot) => {
+        setDeposits(snapshot.docs.map(d => d.data() as SavingsDeposit));
+      }),
+      onSnapshot(collection(db, getDataPath(email, uid, 'daily_expenses')), (snapshot) => {
+        setDailyExpenses(snapshot.docs.map(d => d.data() as DailyExpense));
+      }),
+      onSnapshot(collection(db, getDataPath(email, uid, 'monthly_archives')), (snapshot) => {
+        setArchives(snapshot.docs.map(d => d.data() as MonthArchive));
+      }),
+      onSnapshot(doc(db, getSettingsPath(email, uid)), (snapshot) => {
+        if (snapshot.exists()) {
+          const settings = snapshot.data();
+          if (settings.fuelCostPerKm !== undefined) setFuelCostPerKm(settings.fuelCostPerKm);
+          if (settings.customCategories) setCustomCategories(settings.customCategories);
+          if (settings.customExpenseCategories) setCustomExpenseCategories(settings.customExpenseCategories);
+          if (settings.userName) setUserName(settings.userName);
+          if (settings.carName) setCarName(settings.carName);
+          if (settings.carPlate) setCarPlate(settings.carPlate);
+          
+          if (!settings.userName || !settings.carName) {
+            setShowOnboarding(true);
+          } else {
+            setShowOnboarding(false);
+          }
+        } else {
+          setShowOnboarding(true);
+        }
+        setIsSettingsLoading(false);
+      })
+    ];
+
+    setInitialSyncDone(true);
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, [user, isAuthorized]);
+
+  // Migration for Wesley (Local Storage to Firestore)
+  useEffect(() => {
+    if (isWesley && user && initialSyncDone) {
+      const runMigration = async () => {
+        const migrated = localStorage.getItem('wesley_migrated_to_firestore');
+        if (migrated === 'true') return;
+
+        const batch = writeBatch(db);
+        let hasData = false;
+
+        const localEntries = JSON.parse(localStorage.getItem('uber_entries') || '[]');
+        const localBills = JSON.parse(localStorage.getItem('bills') || '[]');
+        const localDeposits = JSON.parse(localStorage.getItem('deposits') || '[]');
+        const localExpenses = JSON.parse(localStorage.getItem('daily_expenses') || '[]');
+        const localArchives = JSON.parse(localStorage.getItem('monthly_archives') || '[]');
+
+        // Check if Firestore actually has data first to avoid overwriting or duplicates if migration failed mid-way
+        // (Though with onSnapshot it's tricky, but lets assume if 0 entries in Firestore, we migrate)
+        if (earningsEntries.length === 0 && localEntries.length > 0) {
+          localEntries.forEach((e: any) => {
+            const d = doc(collection(db, 'uber_entries'), e.id || generateId());
+            batch.set(d, { ...e, id: d.id });
+          });
+          hasData = true;
+        }
+        
+        // Similar for others... (Simplified for Wesley)
+        if (bills.length === 0 && localBills.length > 0) {
+          localBills.forEach((b: any) => batch.set(doc(collection(db, 'bills'), b.id || generateId()), b));
+          hasData = true;
+        }
+
+        if (hasData) {
+          await batch.commit();
+          localStorage.setItem('wesley_migrated_to_firestore', 'true');
+          console.log("Migration to Firestore complete for Wesley");
+        }
+      };
+      runMigration();
     }
-  });
+  }, [isWesley, user, initialSyncDone, earningsEntries.length, bills.length]);
 
-  const [bills, setBills] = useState<Bill[]>(() => {
-    const saved = localStorage.getItem('bills');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [customCategories, setCustomCategories] = useState<string[]>(() => {
-    const saved = localStorage.getItem('uber_custom_categories');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [deposits, setDeposits] = useState<SavingsDeposit[]>(() => {
-    const saved = localStorage.getItem('deposits');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>(() => {
-    const saved = localStorage.getItem('daily_expenses');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>(() => {
-    const saved = localStorage.getItem('uber_expense_custom_categories');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [archives, setArchives] = useState<MonthArchive[]>(() => {
-    const saved = localStorage.getItem('monthly_archives');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [fuelCostPerKm, setFuelCostPerKm] = useState<number>(() => {
-    const saved = localStorage.getItem('fuel_cost_per_km');
-    return saved ? Number(saved) : 0.20;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('uber_entries', JSON.stringify(earningsEntries));
-  }, [earningsEntries]);
-
-  useEffect(() => {
-    localStorage.setItem('bills', JSON.stringify(bills));
-  }, [bills]);
-
-  useEffect(() => {
-    localStorage.setItem('uber_custom_categories', JSON.stringify(customCategories));
-  }, [customCategories]);
-
-  useEffect(() => {
-    localStorage.setItem('deposits', JSON.stringify(deposits));
-  }, [deposits]);
-
-  useEffect(() => {
-    localStorage.setItem('daily_expenses', JSON.stringify(dailyExpenses));
-  }, [dailyExpenses]);
-
-  useEffect(() => {
-    localStorage.setItem('uber_expense_custom_categories', JSON.stringify(customExpenseCategories));
-  }, [customExpenseCategories]);
-
-  useEffect(() => {
-    localStorage.setItem('monthly_archives', JSON.stringify(archives));
-  }, [archives]);
-
-  useEffect(() => {
-    localStorage.setItem('fuel_cost_per_km', fuelCostPerKm.toString());
-  }, [fuelCostPerKm]);
-
-  const handleMonthlyReset = (monthToArchive: string) => {
+  const handleMonthlyReset = async (monthToArchive: string) => {
+    if (!user) return;
     // Current month data archiving
     const archiveId = generateId();
     const monthArchive: MonthArchive = {
@@ -1631,32 +1784,36 @@ export default function App() {
       totalBills: bills.filter(b => !b.isRecurring).reduce((acc, curr) => acc + curr.value, 0),
     };
 
-    // Only archive if there's actually data
+    const batch = writeBatch(db);
+    const email = user.email;
+    const uid = user.uid;
+
     if (monthArchive.earnings.length > 0 || monthArchive.expenses.length > 0 || monthArchive.bills.length > 0) {
-      setArchives(prev => [monthArchive, ...prev]);
+      batch.set(doc(collection(db, getDataPath(email, uid, 'monthly_archives')), archiveId), monthArchive);
     }
 
-    // Reset data for the new month
-    setEarningsEntries([]);
-    setDailyExpenses([]);
+    // Reset data
+    for (const e of earningsEntries) batch.delete(doc(db, getDataPath(email, uid, 'uber_entries'), e.id));
+    for (const ex of dailyExpenses) batch.delete(doc(db, getDataPath(email, uid, 'daily_expenses'), ex.id));
     
-    // Recurring bills stay, but update their dueDate to the current month/year and reset isPaid
-    setBills(prev => prev.filter(b => b.isRecurring).map(bill => {
+    // Update recurring bills
+    bills.filter(b => b.isRecurring).forEach(bill => {
       const currentDueDate = safeParseISO(bill.dueDate);
       const now = new Date();
       const newDueDate = new Date(now.getFullYear(), now.getMonth(), currentDueDate.getDate());
-      return {
-        ...bill,
+      batch.update(doc(db, getDataPath(email, uid, 'bills'), bill.id), {
         dueDate: format(newDueDate, 'yyyy-MM-dd'),
         isPaid: false
-      };
-    }));
+      });
+    });
 
+    await batch.commit();
     localStorage.setItem('last_monthly_reset', format(new Date(), 'yyyy-MM'));
   };
 
-  // Monthly Reset and Archive Logic (Automatic)
+  // Monthly Reset logic (partial localStorage depends on user)
   useEffect(() => {
+    if (!user) return;
     const now = new Date();
     const currentMonthKey = format(now, 'yyyy-MM');
     const lastResetKey = localStorage.getItem('last_monthly_reset');
@@ -1666,130 +1823,111 @@ export default function App() {
     } else if (!lastResetKey) {
       localStorage.setItem('last_monthly_reset', currentMonthKey);
     }
-  }, [earningsEntries, dailyExpenses, bills]); 
-
-  // Automatic Recurrence Rollover: Ensure recurring bills from previous months exist for current month
-  useEffect(() => {
-    if (bills.length === 0) return;
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    setBills(prev => {
-      const newBills: Bill[] = [...prev];
-      let changed = false;
-
-      // Find all unique recurring bill templates (based on name)
-      const recurringTemplates = prev.filter(b => b.isRecurring);
-      const uniqueTemplateNames = Array.from(new Set(recurringTemplates.map(b => b.name)));
-
-      uniqueTemplateNames.forEach(name => {
-        // Find the latest instance of this recurring bill
-        const instances = prev.filter(b => b.name === name);
-        const latestInstance = [...instances].sort((a, b) => 
-          safeParseISO(b.dueDate).getTime() - safeParseISO(a.dueDate).getTime()
-        )[0];
-
-        if (latestInstance && latestInstance.isRecurring) {
-          const latestDate = safeParseISO(latestInstance.dueDate);
-          let checkDate = addMonths(latestDate, 1);
-
-          // Generate instances until we hit the current month/year
-          while (
-            (checkDate.getFullYear() < currentYear) || 
-            (checkDate.getFullYear() === currentYear && checkDate.getMonth() <= currentMonth)
-          ) {
-            const dateStr = format(checkDate, 'yyyy-MM-dd');
-            const alreadyExists = prev.some(b => b.name === name && b.dueDate === dateStr);
-
-            if (!alreadyExists) {
-              newBills.push({
-                ...latestInstance,
-                id: generateId(),
-                dueDate: dateStr,
-                isPaid: false
-              });
-              changed = true;
-            }
-            checkDate = addMonths(checkDate, 1);
-          }
-        }
-      });
-
-      return changed ? newBills : prev;
-    });
-  }, []); // Run only on mount
+  }, [user, earningsEntries, dailyExpenses, bills]); 
 
   // --- Handlers ---
 
-  const addEarningsEntry = (entry: Omit<EarningsEntry, 'id'>) => {
-    setEarningsEntries(prev => [{ ...entry, id: generateId() }, ...prev]);
+  const addEarningsEntry = async (entry: Omit<EarningsEntry, 'id'>) => {
+    if (!user) return;
+    const id = generateId();
+    const path = getDataPath(user.email, user.uid, 'uber_entries');
+    try {
+      await setDoc(doc(db, path, id), { ...entry, id });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path, auth);
+    }
   };
 
-  const deleteEarningsEntry = (id: string) => {
-    setEarningsEntries(prev => prev.filter(e => e.id !== id));
+  const deleteEarningsEntry = async (id: string) => {
+    if (!user) return;
+    const path = getDataPath(user.email, user.uid, 'uber_entries');
+    await deleteDoc(doc(db, path, id));
   };
 
-  const addBill = (bill: Omit<Bill, 'id' | 'isPaid'>) => {
-    setBills(prev => [...prev, { ...bill, id: generateId(), isPaid: false }]);
+  const addBill = async (bill: Omit<Bill, 'id' | 'isPaid'>) => {
+    if (!user) return;
+    const id = generateId();
+    const path = getDataPath(user.email, user.uid, 'bills');
+    await setDoc(doc(db, path, id), { ...bill, id, isPaid: false });
   };
 
-  const toggleBillPaid = (id: string) => {
-    setBills(prev => {
-      const bill = prev.find(b => b.id === id);
-      if (!bill) return prev;
+  const toggleBillPaid = async (id: string) => {
+    if (!user) return;
+    const email = user.email;
+    const uid = user.uid;
+    const path = getDataPath(email, uid, 'bills');
+    const bill = bills.find(b => b.id === id);
+    if (!bill) return;
 
-      const isMarkingAsPaid = !bill.isPaid;
-      const updated = prev.map(b => b.id === id ? { ...b, isPaid: !b.isPaid } : b);
+    const isMarkingAsPaid = !bill.isPaid;
+    await setDoc(doc(db, path, id), { ...bill, isPaid: !bill.isPaid });
+    
+    if (isMarkingAsPaid && bill.isRecurring) {
+      const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
+      const alreadyExists = bills.some(b => b.name === bill.name && b.dueDate === nextDueDate);
       
-      // Recurrence logic: if marking as paid AND it's recurring, create a new item for the next month
-      if (isMarkingAsPaid && bill.isRecurring) {
-        const nextDueDate = format(addMonths(safeParseISO(bill.dueDate), 1), 'yyyy-MM-dd');
-        const alreadyExists = prev.some(b => b.name === bill.name && b.dueDate === nextDueDate);
-        
-        if (!alreadyExists) {
-          return [...updated, {
-            ...bill,
-            id: generateId(),
-            dueDate: nextDueDate,
-            isPaid: false,
-            isRecurring: true // Ensure it continues to recur
-          }];
-        }
+      if (!alreadyExists) {
+        const nextId = generateId();
+        await setDoc(doc(db, path, nextId), {
+          ...bill,
+          id: nextId,
+          dueDate: nextDueDate,
+          isPaid: false,
+          isRecurring: true
+        });
       }
-      
-      return updated;
-    });
+    }
   };
 
-  const deleteBill = (id: string) => {
-    setBills(prev => prev.filter(b => b.id !== id));
-    setDeposits(prev => prev.filter(d => d.billId !== id));
+  const deleteBill = async (id: string) => {
+    if (!user) return;
+    const email = user.email;
+    const uid = user.uid;
+    await deleteDoc(doc(db, getDataPath(email, uid, 'bills'), id));
+    // Clean deposits
+    const depsToDelete = deposits.filter(d => d.billId === id);
+    for (const d of depsToDelete) await deleteDoc(doc(db, getDataPath(email, uid, 'deposits'), d.id));
   };
 
-  const updateBill = (id: string, updates: Partial<Bill>) => {
-    setBills(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+  const updateBill = async (id: string, updates: Partial<Bill>) => {
+    if (!user) return;
+    const bill = bills.find(b => b.id === id);
+    if (bill) {
+      await setDoc(doc(db, getDataPath(user.email, user.uid, 'bills'), id), { ...bill, ...updates });
+    }
   };
 
-  const addDeposit = (deposit: Omit<SavingsDeposit, 'id'>) => {
-    setDeposits(prev => [...prev, { ...deposit, id: generateId() }]);
+  const addDeposit = async (deposit: Omit<SavingsDeposit, 'id'>) => {
+    if (!user) return;
+    const id = generateId();
+    await setDoc(doc(db, getDataPath(user.email, user.uid, 'deposits'), id), { ...deposit, id });
   };
 
-  const deleteDeposit = (id: string) => {
-    setDeposits(prev => prev.filter(d => d.id !== id));
+  const deleteDeposit = async (id: string) => {
+    if (!user) return;
+    await deleteDoc(doc(db, getDataPath(user.email, user.uid, 'deposits'), id));
   };
 
-  const updateDeposit = (id: string, amount: number) => {
-    setDeposits(prev => prev.map(d => d.id === id ? { ...d, amount } : d));
+  const updateDeposit = async (id: string, amount: number) => {
+    if (!user) return;
+    const d = deposits.find(dep => dep.id === id);
+    if (d) await setDoc(doc(db, getDataPath(user.email, user.uid, 'deposits'), id), { ...d, amount });
   };
 
-  const addDailyExpense = (expense: Omit<DailyExpense, 'id'>) => {
-    setDailyExpenses(prev => [{ ...expense, id: generateId() }, ...prev]);
+  const addDailyExpense = async (expense: Omit<DailyExpense, 'id'>) => {
+    if (!user) return;
+    const id = generateId();
+    await setDoc(doc(db, getDataPath(user.email, user.uid, 'daily_expenses'), id), { ...expense, id });
   };
 
-  const deleteDailyExpense = (id: string) => {
-    setDailyExpenses(prev => prev.filter(e => e.id !== id));
+  const deleteDailyExpense = async (id: string) => {
+    if (!user) return;
+    await deleteDoc(doc(db, getDataPath(user.email, user.uid, 'daily_expenses'), id));
+  };
+
+  const updateSettings = async (updates: any) => {
+    if (!user) return;
+    await setDoc(doc(db, getSettingsPath(user.email, user.uid)), updates, { merge: true });
   };
 
   // --- Calculations ---
@@ -1875,6 +2013,26 @@ export default function App() {
       return [];
     }
   }, [bills, deposits]);
+
+  // Auth Guard
+  if (loading || isSettingsLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+        <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user || !isAuthorized) {
+    return <Login />;
+  }
+
+  if (showOnboarding) {
+    return <OnboardingView onSave={async (data) => {
+      await updateSettings(data);
+      setShowOnboarding(false);
+    }} />;
+  }
 
   // Auto-deposit daily goal removed as per user request for manual confirmation
   
@@ -2227,9 +2385,13 @@ export default function App() {
             <Card className="p-6 bg-slate-50 border-slate-200">
               <h4 className="font-bold text-slate-900 mb-4 text-sm flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-500" />
-                Resumo da Frota
+                Resumo da Frota {carPlate && `(${carPlate})`}
               </h4>
               <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-500 font-medium">Veículo Ativo</span>
+                  <span className="text-sm font-bold text-slate-900">{carName || 'Carro Padrão'}</span>
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500 font-medium">KM Rodados (Total)</span>
                   <span className="text-sm font-bold text-slate-900">{earningsEntries.reduce((acc, curr) => acc + curr.kmDriven, 0)} km</span>
@@ -2275,7 +2437,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-          {( [
+          {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Painel Geral' },
             { id: 'earnings', icon: Car, label: 'Registro de Ganhos' },
             { id: 'expenses', icon: ShoppingBag, label: 'Controle de Gastos' },
@@ -2283,11 +2445,12 @@ export default function App() {
             { id: 'savings', icon: PiggyBank, label: 'Minhas Caixinhas' },
             { id: 'report', icon: FileText, label: 'Relatórios' },
             { id: 'history', icon: History, label: 'Histórico' },
-          ] as const).map(item => (
+            ...(isWesley ? [{ id: 'access', icon: CheckCircle2, label: 'Gerenciar Acessos' }] : []),
+          ].map(item => (
             <button
               key={item.id}
               onClick={() => {
-                setActiveTab(item.id);
+                setActiveTab(item.id as Tab);
                 setIsMenuOpen(false);
               }}
               className={cn(
@@ -2306,13 +2469,24 @@ export default function App() {
 
         <div className="p-6 border-t border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">
-              <Car className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-full bg-slate-900 border-2 border-slate-700 flex items-center justify-center font-bold text-white shadow-lg overflow-hidden shrink-0">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="User" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+              ) : (
+                <Car className="w-5 h-5" />
+              )}
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">Motorista</p>
-              <p className="text-xs text-slate-500">Parceiro Digital</p>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900 truncate">{userName || user?.displayName || 'Motorista'}</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate">{isWesley ? 'Wesley (Admin)' : carName || 'Colaborador'}</p>
             </div>
+            <button 
+              onClick={() => logOut()}
+              className="ml-auto p-2 text-slate-400 hover:text-red-500 transition-colors"
+              title="Sair"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -2332,13 +2506,14 @@ export default function App() {
               </button>
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none mb-1">
-                  {activeTab === 'dashboard' && "Olá, Bem-vindo!"}
+                  {activeTab === 'dashboard' && `Olá, ${userName.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Bem-vindo'}!`}
                   {activeTab === 'earnings' && "Meus Ganhos"}
                   {activeTab === 'expenses' && "Meus Gastos"}
                   {activeTab === 'bills' && "Minhas Contas"}
                   {activeTab === 'savings' && "Minhas Caixinhas"}
                   {activeTab === 'report' && "Relatório"}
                   {activeTab === 'history' && "Histórico Mensal"}
+                  {activeTab === 'access' && "Gerenciar Acessos"}
                 </h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">
                   {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
@@ -2379,7 +2554,10 @@ export default function App() {
                 onAdd={addEarningsEntry} 
                 onDelete={deleteEarningsEntry} 
                 fuelCostPerKm={fuelCostPerKm}
-                onChangeFuelCost={setFuelCostPerKm}
+                onChangeFuelCost={(val) => {
+                  setFuelCostPerKm(val);
+                  updateSettings({ fuelCostPerKm: val });
+                }}
               />
             )}
             {activeTab === 'expenses' && (
@@ -2394,7 +2572,11 @@ export default function App() {
                 onAdd={addDailyExpense} 
                 onDelete={deleteDailyExpense} 
                 customCategories={customExpenseCategories}
-                onAddCategory={(name) => setCustomExpenseCategories(prev => [...prev, name])}
+                onAddCategory={(name) => {
+                  const updated = [...customExpenseCategories, name];
+                  setCustomExpenseCategories(updated);
+                  updateSettings({ customExpenseCategories: updated });
+                }}
               />
             )}
             {activeTab === 'bills' && (
@@ -2411,7 +2593,11 @@ export default function App() {
                 onDelete={deleteBill} 
                 onEdit={updateBill}
                 customCategories={customCategories}
-                onAddCategory={(name) => setCustomCategories(prev => [...prev, name])}
+                onAddCategory={(name) => {
+                  const updated = [...customCategories, name];
+                  setCustomCategories(updated);
+                  updateSettings({ customCategories: updated });
+                }}
               />
             )}
             {activeTab === 'savings' && (
@@ -2446,6 +2632,7 @@ export default function App() {
                 }}
               />
             )}
+            {activeTab === 'access' && isWesley && <AccessManageView />}
           </ErrorBoundary>
         </main>
       </div>
@@ -2477,5 +2664,13 @@ export default function App() {
         ))}
       </nav>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "AuthorizedUser": {
+      "title": "Authorized User",
+      "description": "User authorized to access the application",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["email"]
+    },
+    "EarningsEntry": {
+      "title": "Earnings Entry",
+      "description": "Record of daily earnings and costs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "uberEarnings": { "type": "number" },
+        "pop99Earnings": { "type": "number" },
+        "otherEarnings": { "type": "number" },
+        "totalEarnings": { "type": "number" },
+        "costs": { "type": "number" },
+        "kmDriven": { "type": "number" }
+      },
+      "required": ["id", "date", "uberEarnings", "pop99Earnings", "totalEarnings", "costs"]
+    },
+    "Bill": {
+      "title": "Bill",
+      "description": "Fixed cost or bill to be paid",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "value": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date" },
+        "isRecurring": { "type": "boolean" },
+        "isPaid": { "type": "boolean" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "name", "value", "dueDate", "isRecurring", "isPaid", "category"]
+    },
+    "SavingsDeposit": {
+      "title": "Savings Deposit",
+      "description": "Deposit made into a specific 'caixinha'",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "billId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date" }
+      },
+      "required": ["id", "billId", "amount", "date"]
+    },
+    "DailyExpense": {
+      "title": "Daily Expense",
+      "description": "Personal daily expense (lanches, lunch, etc)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "value": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "description", "value", "date", "category"]
+    },
+    "MonthArchive": {
+      "title": "Month Archive",
+      "description": "Archived data for a closed month",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "month": { "type": "string" },
+        "totalEarnings": { "type": "number" },
+        "totalExpenses": { "type": "number" },
+        "totalBills": { "type": "number" },
+        "earnings": { "type": "array" },
+        "expenses": { "type": "array" },
+        "bills": { "type": "array" }
+      },
+      "required": ["id", "month", "totalEarnings", "totalExpenses", "totalBills"]
+    },
+    "UserSettings": {
+      "title": "User Settings",
+      "description": "Individual user preferences",
+      "type": "object",
+      "properties": {
+        "fuelCostPerKm": { "type": "number" },
+        "customCategories": { "type": "array" },
+        "customExpenseCategories": { "type": "array" },
+        "userName": { "type": "string" },
+        "carName": { "type": "string" },
+        "carPlate": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/usuarios_autorizados/{email}": {
+      "schema": "AuthorizedUser",
+      "description": "Whitelist of users allowed to use the app"
+    },
+    "/uber_entries/{id}": { "schema": "EarningsEntry", "description": "Wesley's earnings entries" },
+    "/bills/{id}": { "schema": "Bill", "description": "Wesley's bills" },
+    "/deposits/{id}": { "schema": "SavingsDeposit", "description": "Wesley's deposits" },
+    "/daily_expenses/{id}": { "schema": "DailyExpense", "description": "Wesley's daily expenses" },
+    "/monthly_archives/{id}": { "schema": "MonthArchive", "description": "Wesley's archives" },
+    "/settings/{uid}": { "schema": "UserSettings", "description": "Wesley's settings" },
+    "/usuarios/{uid}/uber_entries/{id}": { "schema": "EarningsEntry", "description": "User's earnings entries" },
+    "/usuarios/{uid}/bills/{id}": { "schema": "Bill", "description": "User's bills" },
+    "/usuarios/{uid}/deposits/{id}": { "schema": "SavingsDeposit", "description": "User's deposits" },
+    "/usuarios/{uid}/daily_expenses/{id}": { "schema": "DailyExpense", "description": "User's daily expenses" },
+    "/usuarios/{uid}/monthly_archives/{id}": { "schema": "MonthArchive", "description": "User's archives" },
+    "/usuarios/{uid}/settings/config": { "schema": "UserSettings", "description": "User's settings" }
+  }
+}

@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+    
+    function getUserEmail() {
+      return request.auth.token.email;
+    }
+    
+    function isWesley() {
+      return getUserEmail() == 'wesley2178@gmail.com';
+    }
+    
+    function isAuthorized() {
+      return isWesley() || exists(/databases/$(database)/documents/usuarios_autorizados/$(getUserEmail()));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Whitelist ---
+    match /usuarios_autorizados/{email} {
+      allow get: if isSignedIn() && (getUserEmail() == email || isWesley());
+      allow list, write: if isWesley();
+    }
+
+    // --- Wesley's Root Collections ---
+    match /uber_entries/{id} {
+      allow read, write: if isSignedIn() && isWesley() && isEmailVerified();
+    }
+    match /bills/{id} {
+      allow read, write: if isSignedIn() && isWesley() && isEmailVerified();
+    }
+    match /deposits/{id} {
+      allow read, write: if isSignedIn() && isWesley() && isEmailVerified();
+    }
+    match /daily_expenses/{id} {
+      allow read, write: if isSignedIn() && isWesley() && isEmailVerified();
+    }
+    match /monthly_archives/{id} {
+      allow read, write: if isSignedIn() && isWesley() && isEmailVerified();
+    }
+    match /settings/{uid} {
+      allow read, write: if isSignedIn() && isWesley() && isEmailVerified() && uid == request.auth.uid;
+    }
+
+    // --- Generic Users Path ---
+    match /usuarios/{uid}/{collectionName}/{id} {
+      allow read, write: if isSignedIn() && isEmailVerified() && uid == request.auth.uid && isAuthorized();
+    }
+    
+    match /usuarios/{uid}/settings/config {
+      allow read, write: if isSignedIn() && isEmailVerified() && uid == request.auth.uid && isAuthorized();
+    }
+  }
+}
