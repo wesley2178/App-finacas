@@ -380,7 +380,7 @@ const EarningsView = ({
       </Card>
 
       <Card>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-bottom border-slate-100 bg-slate-50/50">
@@ -434,6 +434,52 @@ const EarningsView = ({
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile List View */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {entries.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 font-medium">Nenhum registro encontrado.</div>
+          ) : (
+            entries.map(entry => (
+              <div key={entry.id} className="p-5 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-slate-900">{safeFormat(entry.date, "EEEE, dd/MM/yyyy")}</span>
+                  <button 
+                    onClick={() => onDelete(entry.id)}
+                    className="p-2 -mr-2 text-slate-400 hover:text-red-500"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ganhos</p>
+                    <div className="space-y-0.5 mt-1">
+                      {entry.uberEarnings > 0 && <p className="text-xs text-slate-600">Uber: R$ {formatCurrency(entry.uberEarnings)}</p>}
+                      {entry.pop99Earnings > 0 && <p className="text-xs text-amber-600">99: R$ {formatCurrency(entry.pop99Earnings)}</p>}
+                      {(entry.otherEarnings || 0) > 0 && <p className="text-xs text-blue-600">Outros: R$ {formatCurrency(entry.otherEarnings)}</p>}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumo</p>
+                    <p className="text-xs text-slate-400 mt-1">{entry.kmDriven || 0} km rodados</p>
+                    <p className="text-xs text-brand-danger">Custos: R$ {formatCurrency(entry.costs)}</p>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Total Bruto</p>
+                    <p className="font-bold text-slate-900">R$ {formatCurrency(entry.totalEarnings)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Lucro Líquido</p>
+                    <p className="font-bold text-emerald-600">R$ {formatCurrency(entry.totalEarnings - entry.costs)}</p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
     </div>
@@ -1089,7 +1135,7 @@ const ExpensesView = ({ expenses, onAdd, onDelete, customCategories, onAddCatego
       </Card>
 
       <Card>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-bottom border-slate-100 bg-slate-50/50">
@@ -1139,6 +1185,41 @@ const ExpensesView = ({ expenses, onAdd, onDelete, customCategories, onAddCatego
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {expenses.length === 0 ? (
+            <div className="px-6 py-12 text-center text-slate-400">
+              Nenhum gasto registrado hoje.
+            </div>
+          ) : (
+            expenses.map(expense => (
+              <div key={expense.id} className="p-5 flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-slate-900">{expense.description}</p>
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-slate-100 text-slate-400 tracking-tighter">
+                      {expense.category === 'food' ? 'Comida' : 
+                       expense.category === 'delivery' ? 'Delivery' : 
+                       expense.category === 'transport' ? 'Transporte' : 
+                       expense.category === 'other' ? 'Outros' : expense.category}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    {safeFormat(expense.date, "EEEE, dd/MM/yyyy")}
+                  </p>
+                  <p className="text-base font-black text-brand-danger">R$ {formatCurrency(expense.value)}</p>
+                </div>
+                <button 
+                  onClick={() => onDelete(expense.id)}
+                  className="p-3 bg-red-50 text-brand-danger rounded-xl"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </Card>
     </div>
@@ -1394,18 +1475,18 @@ const HistoryView = ({ archives, onManualReset }: {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center bg-amber-50 p-4 rounded-2xl border border-amber-100">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-amber-50 p-5 rounded-2xl border border-amber-100">
         <div className="flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-amber-600" />
-          <p className="text-xs font-medium text-amber-800">
+          <p className="text-sm sm:text-xs font-medium text-amber-800">
             Deseja encerrar o mês atual antes do dia 1º? 
           </p>
         </div>
         <Button 
           onClick={onManualReset}
-          className="bg-amber-600 hover:bg-amber-700 text-white border-none text-[10px] h-8 px-4"
+          className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white border-none h-12 sm:h-8 px-6 text-sm sm:text-[10px]"
         >
-          Fechar e Arquivar
+          Fechar e Arquivar Mês
         </Button>
       </div>
 
@@ -1632,8 +1713,8 @@ const OnboardingView = ({ onSave }: { onSave: (data: { userName: string, carName
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl z-[200] flex items-center justify-center p-6 overflow-y-auto">
-      <Card className="max-w-md w-full p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl border-white/10 bg-white/95 text-slate-900">
+    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl z-[200] flex items-center justify-center p-4 md:p-6 overflow-y-auto">
+      <Card className="max-w-md w-full p-6 md:p-8 space-y-6 md:space-y-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl border-white/10 bg-white/95 text-slate-900">
         <div className="text-center space-y-2">
           <div className="w-20 h-20 bg-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-brand-primary/20">
             <Car className="w-10 h-10 text-brand-on-primary" />
@@ -2098,8 +2179,8 @@ function AppContent() {
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Main Financial Pulse */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 text-brand-on-primary">
-          <Card className="lg:col-span-2 p-8 bg-brand-primary border-none shadow-xl shadow-brand-primary/20 relative overflow-hidden group">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 text-brand-on-primary">
+          <Card className="lg:col-span-2 p-6 md:p-8 bg-brand-primary border-none shadow-xl shadow-brand-primary/20 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
               <TrendingUp className="w-24 h-24 text-brand-on-primary" />
             </div>
@@ -2108,31 +2189,31 @@ function AppContent() {
                 <span className="w-2 h-2 rounded-full bg-brand-on-primary animate-pulse" />
                 <p className="text-[10px] font-black opacity-50 uppercase tracking-widest">Saldo Líquido Mensal</p>
               </div>
-              <h3 className="text-5xl font-black text-brand-on-primary tracking-tight mb-2">
+              <h3 className="text-4xl md:text-5xl font-black text-brand-on-primary tracking-tight mb-2">
                 R$ {formatCurrency(netEarnings)}
               </h3>
               <p className="text-sm opacity-40">Restante após todos os custos operacionais e gastos</p>
               
-              <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-white/10">
+              <div className="grid grid-cols-2 gap-4 mt-6 md:mt-8 pt-6 md:pt-8 border-t border-white/10">
                 <div>
                   <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Ganhos Brutos</p>
-                  <p className="text-lg font-bold text-brand-on-primary">R$ {formatCurrency(monthlyStats.totalEarnings)}</p>
+                  <p className="text-base md:text-lg font-bold text-brand-on-primary">R$ {formatCurrency(monthlyStats.totalEarnings)}</p>
                 </div>
                 <div>
                   <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Custos Totais</p>
-                  <p className="text-lg font-bold opacity-80">R$ {formatCurrency(monthlyStats.totalEarnings - netEarnings)}</p>
+                  <p className="text-base md:text-lg font-bold opacity-80">R$ {formatCurrency(monthlyStats.totalEarnings - netEarnings)}</p>
                 </div>
               </div>
             </div>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6 lg:col-span-2">
-            <Card className="p-6 flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer group" onClick={() => setActiveTab('earnings')}>
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-4 md:gap-6 lg:col-span-2">
+            <Card className="p-5 md:p-6 flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer group" onClick={() => setActiveTab('earnings')}>
               <div className="flex justify-between items-start">
-                <div className="p-3 bg-slate-100 rounded-2xl group-hover:bg-slate-900 group-hover:text-white transition-colors">
-                  <Car className="w-6 h-6" />
+                <div className="p-2 md:p-3 bg-slate-100 rounded-xl md:rounded-2xl group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                  <Car className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
-                <div className="text-right">
+                <div className="text-right hidden sm:block">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Top App</p>
                   <span className={cn(
                     "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter",
@@ -2143,19 +2224,19 @@ function AppContent() {
                 </div>
               </div>
               <div>
-                <p className="text-2xl font-black text-slate-900 mt-4">
+                <p className="text-lg md:text-2xl font-black text-slate-900 mt-2 md:mt-4">
                   R$ {formatCurrency(Math.max(totalUber, total99))}
                 </p>
-                <p className="text-xs text-slate-500">Ganhos no aplicativo principal</p>
+                <p className="text-[10px] md:text-xs text-slate-500">App principal</p>
               </div>
             </Card>
 
-            <Card className="p-6 flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer group" onClick={() => setActiveTab('savings')}>
+            <Card className="p-5 md:p-6 flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer group" onClick={() => setActiveTab('savings')}>
               <div className="flex justify-between items-start">
-                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                  <PiggyBank className="w-6 h-6" />
+                <div className="p-2 md:p-3 bg-amber-50 text-amber-600 rounded-xl md:rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                  <PiggyBank className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
-                <div className="text-right">
+                <div className="text-right hidden sm:block">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Meta Diária</p>
                   <span className="bg-brand-success/10 text-brand-success px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter">
                     Em Dia
@@ -2163,10 +2244,10 @@ function AppContent() {
                 </div>
               </div>
               <div>
-                <p className="text-2xl font-black text-slate-900 mt-4">
+                <p className="text-lg md:text-2xl font-black text-slate-900 mt-2 md:mt-4">
                   R$ {formatCurrency(savingsGoals.reduce((acc, curr) => acc + curr.dailyNeeded, 0))}
                 </p>
-                <p className="text-xs text-slate-500">Reserva sugerida para hoje</p>
+                <p className="text-[10px] md:text-xs text-slate-500">Reserva hoje</p>
               </div>
             </Card>
           </div>
@@ -2265,43 +2346,43 @@ function AppContent() {
         </div>
 
         {/* Quick Actions */}
-        <div className="flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-4">
           <button 
             onClick={() => setActiveTab('earnings')}
-            className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group"
+            className="flex items-center gap-4 px-6 py-5 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group active:scale-[0.98]"
           >
-            <div className="p-2 bg-slate-900 text-white rounded-lg">
-              <Plus className="w-4 h-4" />
+            <div className="p-3 bg-slate-900 text-white rounded-xl">
+              <Plus className="w-5 h-5" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-bold text-slate-900">Novo Ganho</p>
-              <p className="text-[10px] text-slate-500">Registrar dia trabalhado</p>
+              <p className="text-base font-bold text-slate-900">Novo Ganho</p>
+              <p className="text-xs text-slate-500">Registrar dia trabalhado</p>
             </div>
           </button>
           
           <button 
             onClick={() => setActiveTab('expenses')}
-            className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group"
+            className="flex items-center gap-4 px-6 py-5 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group active:scale-[0.98]"
           >
-            <div className="p-2 bg-orange-100 text-orange-600 rounded-lg group-hover:bg-orange-500 group-hover:text-white transition-colors">
-              <ShoppingBag className="w-4 h-4" />
+            <div className="p-3 bg-orange-100 text-orange-600 rounded-xl group-hover:bg-orange-500 group-hover:text-white transition-colors">
+              <ShoppingBag className="w-5 h-5" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-bold text-slate-900">Novo Gasto</p>
-              <p className="text-[10px] text-slate-500">Lanches e extras</p>
+              <p className="text-base font-bold text-slate-900">Novo Gasto</p>
+              <p className="text-xs text-slate-500">Lanches e extras</p>
             </div>
           </button>
 
           <button 
             onClick={() => setActiveTab('report')}
-            className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group"
+            className="flex items-center gap-4 px-6 py-5 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all shadow-sm hover:shadow-md group active:scale-[0.98]"
           >
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-500 group-hover:text-white transition-colors">
-              <FileText className="w-4 h-4" />
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-500 group-hover:text-white transition-colors">
+              <FileText className="w-5 h-5" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-bold text-slate-900">Ver Relatório</p>
-              <p className="text-[10px] text-slate-500">Análise completa do mês</p>
+              <p className="text-base font-bold text-slate-900">Ver Relatório</p>
+              <p className="text-xs text-slate-500">Análise completa</p>
             </div>
           </button>
         </div>
@@ -2609,7 +2690,7 @@ function AppContent() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 pb-32 pt-6 px-4 md:px-8 max-w-6xl mx-auto w-full">
+        <main className="flex-1 pb-32 pt-4 md:pt-6 px-3 md:px-8 max-w-6xl mx-auto w-full">
           <ErrorBoundary>
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'earnings' && (
@@ -2709,7 +2790,7 @@ function AppContent() {
       </div>
 
       {/* Bottom Navigation (Mobile Dock) */}
-      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-sm h-16 bg-brand-primary/95 backdrop-blur-lg border border-white/10 rounded-2xl shadow-2xl z-50 px-4 flex items-center justify-between text-brand-on-primary">
+      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-sm h-16 bg-brand-primary/95 backdrop-blur-lg border border-white/10 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] z-50 px-2 flex items-center justify-around text-brand-on-primary">
         {( [
           { id: 'dashboard', icon: LayoutDashboard },
           { id: 'earnings', icon: Car },
@@ -2721,15 +2802,15 @@ function AppContent() {
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "relative p-3 rounded-xl transition-all duration-300",
+              "relative flex-1 h-full flex flex-col items-center justify-center transition-all duration-300",
               activeTab === item.id 
                 ? "text-brand-on-primary scale-110 -translate-y-1" 
-                : "opacity-50 hover:opacity-100"
+                : "opacity-40"
             )}
           >
-            <item.icon className="w-6 h-6" />
+            <item.icon className={cn("transition-transform duration-300", activeTab === item.id ? "w-7 h-7" : "w-6 h-6")} />
             {activeTab === item.id && (
-              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-brand-on-primary rounded-full shadow-[0_0_8px_white]" />
+              <div className="absolute bottom-2 w-1 h-1 bg-brand-on-primary rounded-full shadow-[0_0_8px_white]" />
             )}
           </button>
         ))}
