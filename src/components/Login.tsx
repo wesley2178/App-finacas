@@ -34,7 +34,7 @@ export const Login: React.FC = () => {
           </div>
           <div className="pt-4">
             <h1 className="text-4xl font-black text-white tracking-tight italic">
-              MINHAS<span className="text-slate-500">FINANÇAS</span>
+              MOB<span className="text-slate-500">CASH</span>
             </h1>
             <p className="text-slate-400 mt-2 font-medium">Gestão inteligente para motoristas parceiros</p>
           </div>

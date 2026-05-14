@@ -29,7 +29,8 @@ import {
   FileText,
   Printer,
   History,
-  LogOut
+  LogOut,
+  Palette
 } from 'lucide-react';
 import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -123,8 +124,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
           <Card className="max-w-md w-full p-8 text-center space-y-6">
-            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto">
-              <AlertCircle className="w-10 h-10 text-red-500" />
+            <div className="w-20 h-20 bg-brand-danger/10 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-10 h-10 text-brand-danger" />
             </div>
             <div className="space-y-2">
               <h2 className="text-2xl font-bold text-slate-900">Ops! Algo deu errado.</h2>
@@ -160,7 +161,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 // --- Components ---
 
 const Card = ({ children, className }: { children: React.ReactNode; className?: string; [key: string]: any }) => (
-  <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden", className)}>
+  <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden transition-all duration-300", className)}>
     {children}
   </div>
 );
@@ -179,9 +180,9 @@ const Button = ({
   type?: 'button' | 'submit';
 }) => {
   const variants = {
-    primary: "bg-slate-900 text-white hover:bg-slate-800",
+    primary: "bg-brand-primary text-brand-on-primary hover:opacity-90",
     secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
-    danger: "bg-red-50 text-red-600 hover:bg-red-100",
+    danger: "bg-brand-danger/10 text-brand-danger hover:bg-brand-danger/20",
     ghost: "bg-transparent text-slate-600 hover:bg-slate-100"
   };
 
@@ -359,7 +360,7 @@ const EarningsView = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Custo Combustível (R$ {formatCurrency(fuelCostPerKm)}/km)</p>
-              <p className="text-xl font-black text-red-500">R$ {formatCurrency(fuelCost, { minimumFractionDigits: 2 })}</p>
+              <p className="text-xl font-black text-brand-danger">R$ {formatCurrency(fuelCost, { minimumFractionDigits: 2 })}</p>
             </div>
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Custo Total</p>
@@ -415,7 +416,7 @@ const EarningsView = ({
                   <td className="px-6 py-4 font-bold text-slate-900">
                     R$ {formatCurrency(entry.totalEarnings)}
                   </td>
-                  <td className="px-6 py-4 text-red-500">
+                  <td className="px-6 py-4 text-brand-danger">
                     R$ {formatCurrency(entry.costs)}
                   </td>
                   <td className="px-6 py-4 font-bold text-emerald-600">
@@ -459,6 +460,7 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, onEdit, customCategories,
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [editingDueDate, setEditingDueDate] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -490,13 +492,18 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, onEdit, customCategories,
   const startEditing = (bill: Bill) => {
     setEditingBillId(bill.id);
     setEditingValue(bill.value.toString());
+    setEditingDueDate(bill.dueDate);
   };
 
   const saveEdit = () => {
-    if (editingBillId && editingValue) {
-      onEdit(editingBillId, { value: Number(editingValue) });
+    if (editingBillId && (editingValue || editingDueDate)) {
+      onEdit(editingBillId, { 
+        value: Number(editingValue),
+        dueDate: editingDueDate
+      });
       setEditingBillId(null);
       setEditingValue("");
+      setEditingDueDate("");
     }
   };
 
@@ -612,65 +619,85 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, onEdit, customCategories,
                 </div>
                 <div className={cn(
                   "px-2 py-1 rounded text-[10px] font-bold uppercase",
-                  bill.isPaid ? "bg-emerald-50 text-emerald-600" : isOverdue ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-600"
+                  bill.isPaid ? "bg-brand-success/10 text-brand-success" : isOverdue ? "bg-brand-danger/10 text-brand-danger" : "bg-slate-100 text-slate-600"
                 )}>
                   {bill.isPaid ? "Pago" : isOverdue ? "Atrasado" : "Pendente"}
                 </div>
               </div>
               
-              <div className="flex items-center justify-between mt-6">
+              <div className="mt-6">
                 {isEditing ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-400">R$</span>
-                    <input 
-                      type="number"
-                      value={editingValue}
-                      onChange={(e) => setEditingValue(e.target.value)}
-                      className="w-24 px-2 py-1 text-lg font-bold border-b border-slate-900 focus:outline-none"
-                      autoFocus
-                    />
-                    <button 
-                      onClick={saveEdit}
-                      className="p-1.5 bg-slate-900 text-white rounded-lg"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => setEditingBillId(null)}
-                      className="p-1.5 bg-slate-100 text-slate-400 rounded-lg"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Valor</label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-400">R$</span>
+                          <input 
+                            type="number"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            className="w-full px-2 py-1 text-lg font-bold border-b border-slate-900 focus:outline-none bg-transparent"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Vencimento</label>
+                        <input 
+                          type="date"
+                          value={editingDueDate}
+                          onChange={(e) => setEditingDueDate(e.target.value)}
+                          className="w-full px-2 py-1 text-sm font-medium border-b border-slate-900 focus:outline-none bg-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button 
+                        onClick={() => setEditingBillId(null)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" /> Cancelar
+                      </button>
+                      <button 
+                        onClick={saveEdit}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Salvar Alterações
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-slate-900">R$ {formatCurrency(bill.value)}</span>
-                    <button 
-                      onClick={() => startEditing(bill)}
-                      className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
-                      title="Editar valor este mês"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold text-slate-900">R$ {formatCurrency(bill.value)}</span>
+                      <button 
+                        onClick={() => startEditing(bill)}
+                        className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                        title="Editar conta"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => onToggle(bill.id)}
+                        className={cn(
+                          "p-2 rounded-lg transition-colors",
+                          bill.isPaid ? "bg-brand-success/10 text-brand-success" : "bg-slate-100 text-slate-400 hover:text-brand-success"
+                        )}
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => onDelete(bill.id)}
+                        className="p-2 rounded-lg bg-slate-100 text-slate-400 hover:text-brand-danger transition-colors"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => onToggle(bill.id)}
-                    className={cn(
-                      "p-2 rounded-lg transition-colors",
-                      bill.isPaid ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400 hover:text-emerald-600"
-                    )}
-                  >
-                    <CheckCircle2 className="w-5 h-5" />
-                  </button>
-                  <button 
-                    onClick={() => onDelete(bill.id)}
-                    className="p-2 rounded-lg bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
               </div>
             </Card>
           );
@@ -783,7 +810,7 @@ const SavingsView = ({ goals, deposits, onDeposit, onDeleteDeposit, onUpdateDepo
                     </div>
                     <div className="relative h-6 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
                       <div 
-                        className="absolute top-0 left-0 h-full bg-emerald-500 transition-all duration-1000" 
+                        className="absolute top-0 left-0 h-full bg-brand-success transition-all duration-1000" 
                         style={{ width: `${Math.min(100, progress)}%` }}
                       />
                       {/* Ruler Ticks */}
@@ -812,7 +839,7 @@ const SavingsView = ({ goals, deposits, onDeposit, onDeleteDeposit, onUpdateDepo
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Ainda Falta</p>
-                      <p className="text-xl font-bold text-red-500">R$ {formatCurrency(goal.remaining)}</p>
+                      <p className="text-xl font-bold text-brand-danger">R$ {formatCurrency(goal.remaining)}</p>
                     </div>
                   </div>
 
@@ -1118,10 +1145,11 @@ const ExpensesView = ({ expenses, onAdd, onDelete, customCategories, onAddCatego
   );
 };
 
-const ReportView = ({ earnings, expenses, bills }: {
+const ReportView = ({ earnings, expenses, bills, theme }: {
   earnings: EarningsEntry[];
   expenses: DailyExpense[];
   bills: Bill[];
+  theme: 'classic' | 'professional';
 }) => {
   const totalUber = earnings.reduce((acc, curr) => acc + curr.uberEarnings, 0);
   const total99 = earnings.reduce((acc, curr) => acc + curr.pop99Earnings, 0);
@@ -1137,15 +1165,9 @@ const ReportView = ({ earnings, expenses, bills }: {
   const netBalance = totalGrossEarnings - totalAllCosts;
 
   const dataApps = [
-    { name: 'Uber', value: totalUber, color: '#0f172a' },
+    { name: 'Uber', value: totalUber, color: theme === 'professional' ? '#10b981' : '#0f172a' },
     { name: '99 Pop', value: total99, color: '#f59e0b' },
-    { name: 'Outros', value: totalOtherEarnings, color: '#3b82f6' }
-  ].filter(d => d.value > 0);
-
-  const dataExpenses = [
-    { name: 'Operacional', value: operationalCosts, color: '#ef4444' },
-    { name: 'Diários', value: dailyExpensesValue, color: '#f97316' },
-    { name: 'Contas Fixas', value: totalBillsValue, color: '#64748b' }
+    { name: 'Outros', value: totalOtherEarnings, color: theme === 'professional' ? '#3b82f6' : '#3b82f6' }
   ].filter(d => d.value > 0);
 
   return (
@@ -1161,25 +1183,25 @@ const ReportView = ({ earnings, expenses, bills }: {
       </div>
 
       {/* Financial Health Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="p-8 bg-slate-900 border-none shadow-xl shadow-slate-900/20">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Lucro Líquido Real</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-brand-on-primary">
+        <Card className="p-8 bg-brand-primary border-none shadow-xl shadow-brand-primary/20">
+          <p className="text-[10px] font-black opacity-50 uppercase tracking-widest mb-2">Lucro Líquido Real</p>
           <div className="flex items-baseline gap-2 mb-4">
             <h4 className={cn(
               "text-4xl font-black tracking-tight",
-              netBalance >= 0 ? "text-emerald-400" : "text-red-400"
+              netBalance >= 0 ? "text-brand-on-primary" : "text-brand-on-danger"
             )}>
               R$ {formatCurrency(netBalance)}
             </h4>
           </div>
           <div className="pt-6 border-t border-white/10 flex justify-between">
             <div>
-              <p className="text-[9px] font-bold text-white/40 uppercase">Ganhos Totais</p>
-              <p className="font-bold text-white">R$ {formatCurrency(totalGrossEarnings)}</p>
+              <p className="text-[9px] font-bold opacity-40 uppercase">Ganhos Totais</p>
+              <p className="font-bold">R$ {formatCurrency(totalGrossEarnings)}</p>
             </div>
             <div className="text-right">
-              <p className="text-[9px] font-bold text-white/40 uppercase">Dívidas/Gastos</p>
-              <p className="font-bold text-red-400">R$ {formatCurrency(totalAllCosts)}</p>
+              <p className="text-[9px] font-bold opacity-40 uppercase">Dívidas/Gastos</p>
+              <p className="font-bold opacity-80">R$ {formatCurrency(totalAllCosts)}</p>
             </div>
           </div>
         </Card>
@@ -1187,7 +1209,7 @@ const ReportView = ({ earnings, expenses, bills }: {
         <Card className="p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
             <h4 className="font-bold text-lg flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-emerald-500" /> Distribuição de Receita
+              <TrendingUp className="w-5 h-5 text-brand-success" /> Distribuição de Receita
             </h4>
             <div className="flex gap-4">
               {dataApps.map(app => (
@@ -1215,7 +1237,7 @@ const ReportView = ({ earnings, expenses, bills }: {
               <div key={app.name} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">{app.name}</p>
                 <p className="text-sm font-black text-slate-900">R$ {formatCurrency(app.value)}</p>
-                <p className="text-[9px] font-bold text-emerald-600">
+                <p className="text-[9px] font-bold text-brand-success">
                   {((app.value / (totalGrossEarnings || 1)) * 100).toFixed(1)}% do total
                 </p>
               </div>
@@ -1231,15 +1253,15 @@ const ReportView = ({ earnings, expenses, bills }: {
             <ShoppingBag className="w-5 h-5 text-slate-400" /> Todos os Custos & Gastos
           </h4>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-red-50/50 rounded-2xl border border-red-100">
+            <div className="flex items-center justify-between p-4 bg-brand-danger/5 rounded-2xl border border-brand-danger/10">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 rounded-lg"><Car className="w-4 h-4 text-red-600" /></div>
+                <div className="p-2 bg-brand-danger/10 rounded-lg"><Car className="w-4 h-4 text-brand-danger" /></div>
                 <div>
                   <p className="text-sm font-bold text-slate-900">Custos Operacionais</p>
-                  <p className="text-[10px] text-red-600/70 font-medium">Combustível + Extras do KM</p>
+                  <p className="text-[10px] text-brand-danger/70 font-medium">Combustível + Extras do KM</p>
                 </div>
               </div>
-              <span className="font-black text-red-600">R$ {formatCurrency(operationalCosts)}</span>
+              <span className="font-black text-brand-danger">R$ {formatCurrency(operationalCosts)}</span>
             </div>
 
             <div className="flex items-center justify-between p-4 bg-orange-50/50 rounded-2xl border border-orange-100">
@@ -1291,8 +1313,12 @@ const ReportView = ({ earnings, expenses, bills }: {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  <Cell fill="#10b981" />
-                  <Cell fill="#f43f5e" />
+                  {[
+                    { name: 'Pagas', value: paidBillsValue },
+                    { name: 'Pendentes', value: totalBillsValue - paidBillsValue }
+                  ].filter(d => d.value > 0).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.name === 'Pagas' ? '#10b981' : (theme === 'professional' ? '#ff6b6b' : '#ef4444')} />
+                  ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
@@ -1301,15 +1327,15 @@ const ReportView = ({ earnings, expenses, bills }: {
           <div className="space-y-3 mt-4">
             <div className="flex justify-between text-sm">
               <span className="text-slate-500 font-medium flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" /> Pagas
+                <div className="w-2 h-2 rounded-full bg-brand-success" /> Pagas
               </span>
-              <span className="font-bold text-emerald-600">R$ {formatCurrency(paidBillsValue)}</span>
+              <span className="font-bold text-brand-success">R$ {formatCurrency(paidBillsValue)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500 font-medium flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500" /> Pendentes
+                <div className="w-2 h-2 rounded-full bg-brand-danger" /> Pendentes
               </span>
-              <span className="font-bold text-red-600">R$ {formatCurrency(totalBillsValue - paidBillsValue)}</span>
+              <span className="font-bold text-brand-danger">R$ {formatCurrency(totalBillsValue - paidBillsValue)}</span>
             </div>
           </div>
         </Card>
@@ -1607,12 +1633,12 @@ const OnboardingView = ({ onSave }: { onSave: (data: { userName: string, carName
 
   return (
     <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl z-[200] flex items-center justify-center p-6 overflow-y-auto">
-      <Card className="max-w-md w-full p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl border-white/10 bg-white/95">
+      <Card className="max-w-md w-full p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl border-white/10 bg-white/95 text-slate-900">
         <div className="text-center space-y-2">
-          <div className="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-slate-900/20">
-            <Car className="w-10 h-10 text-white" />
+          <div className="w-20 h-20 bg-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-brand-primary/20">
+            <Car className="w-10 h-10 text-brand-on-primary" />
           </div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Bem-vindo ao Minhas Finanças!</h2>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Bem-vindo ao Mobcash!</h2>
           <p className="text-slate-500 text-sm">Vamos personalizar seu acesso para começar.</p>
         </div>
 
@@ -1662,6 +1688,15 @@ function AppContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [initialSyncDone, setInitialSyncDone] = useState(false);
   
+  const [theme, setTheme] = useState<'classic' | 'professional'>(() => {
+    return (localStorage.getItem('mobcash-theme') as any) || 'classic';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('mobcash-theme', theme);
+  }, [theme]);
+
   // State 
   const [earningsEntries, setEarningsEntries] = useState<EarningsEntry[]>([]);
   const [bills, setBills] = useState<Bill[]>([]);
@@ -2063,29 +2098,29 @@ function AppContent() {
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Main Financial Pulse */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <Card className="lg:col-span-2 p-8 bg-slate-900 border-none shadow-xl shadow-slate-900/20 relative overflow-hidden group">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 text-brand-on-primary">
+          <Card className="lg:col-span-2 p-8 bg-brand-primary border-none shadow-xl shadow-brand-primary/20 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
-              <TrendingUp className="w-24 h-24 text-white" />
+              <TrendingUp className="w-24 h-24 text-brand-on-primary" />
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Líquido Mensal</p>
+                <span className="w-2 h-2 rounded-full bg-brand-on-primary animate-pulse" />
+                <p className="text-[10px] font-black opacity-50 uppercase tracking-widest">Saldo Líquido Mensal</p>
               </div>
-              <h3 className="text-5xl font-black text-white tracking-tight mb-2">
+              <h3 className="text-5xl font-black text-brand-on-primary tracking-tight mb-2">
                 R$ {formatCurrency(netEarnings)}
               </h3>
-              <p className="text-sm text-slate-400">Restante após todos os custos operacionais e gastos</p>
+              <p className="text-sm opacity-40">Restante após todos os custos operacionais e gastos</p>
               
               <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-white/10">
                 <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Ganhos Brutos</p>
-                  <p className="text-lg font-bold text-white">R$ {formatCurrency(monthlyStats.totalEarnings)}</p>
+                  <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Ganhos Brutos</p>
+                  <p className="text-lg font-bold text-brand-on-primary">R$ {formatCurrency(monthlyStats.totalEarnings)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Custos Totais</p>
-                  <p className="text-lg font-bold text-red-400">R$ {formatCurrency(monthlyStats.totalEarnings - netEarnings)}</p>
+                  <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Custos Totais</p>
+                  <p className="text-lg font-bold opacity-80">R$ {formatCurrency(monthlyStats.totalEarnings - netEarnings)}</p>
                 </div>
               </div>
             </div>
@@ -2101,7 +2136,7 @@ function AppContent() {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Top App</p>
                   <span className={cn(
                     "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter",
-                    totalUber >= total99 ? "bg-slate-900 text-white" : "bg-amber-100 text-amber-600"
+                    totalUber >= total99 ? "bg-brand-primary text-brand-on-primary" : "bg-amber-100 text-amber-600"
                   )}>
                     {totalUber >= total99 ? "Uber Driver" : "99 Pop"}
                   </span>
@@ -2122,7 +2157,7 @@ function AppContent() {
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Meta Diária</p>
-                  <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                  <span className="bg-brand-success/10 text-brand-success px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter">
                     Em Dia
                   </span>
                 </div>
@@ -2139,8 +2174,8 @@ function AppContent() {
 
         {/* Relatório de Equilíbrio Mensal (Ganhos vs Gastos) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          <Card className="p-6 border-emerald-100 bg-emerald-50/20">
-            <h4 className="text-sm font-bold text-emerald-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Card className="p-6 border-brand-success/20 bg-brand-success/5">
+            <h4 className="text-sm font-bold text-brand-success uppercase tracking-wider mb-4 flex items-center gap-2">
               <TrendingUp className="w-4 h-4" /> Entradas (Receitas)
             </h4>
 
@@ -2204,8 +2239,8 @@ function AppContent() {
             </div>
           </Card>
 
-          <Card className="p-6 border-red-100 bg-red-50/20">
-            <h4 className="text-sm font-bold text-red-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Card className="p-6 border-brand-danger/20 bg-brand-danger/5">
+            <h4 className="text-sm font-bold text-brand-danger uppercase tracking-wider mb-4 flex items-center gap-2">
               <TrendingDown className="w-4 h-4" /> Saídas (Custos & Gastos)
             </h4>
             <div className="space-y-3">
@@ -2284,14 +2319,14 @@ function AppContent() {
                   <div className="relative w-24 h-24">
                     <svg className="w-full h-full" viewBox="0 0 36 36">
                       <path
-                        className="text-slate-100"
+                        className="text-brand-danger"
                         stroke="currentColor"
                         strokeWidth="4"
                         fill="none"
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                       />
                       <path
-                        className="text-slate-900"
+                        className="text-brand-success"
                         stroke="currentColor"
                         strokeWidth="4"
                         strokeLinecap="round"
@@ -2308,7 +2343,7 @@ function AppContent() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-emerald-600 uppercase mb-1">R$ {formatCurrency(monthlyStats.paidBills)} pagas</p>
-                    <p className="text-xs font-bold text-red-500 uppercase">R$ {formatCurrency(monthlyStats.totalBills - monthlyStats.paidBills)} pendentes</p>
+                    <p className="text-xs font-bold text-brand-danger uppercase">R$ {formatCurrency(monthlyStats.totalBills - monthlyStats.paidBills)} pendentes</p>
                     <button 
                       onClick={() => setActiveTab('bills')}
                       className="mt-3 text-[10px] font-black text-slate-900 uppercase flex items-center gap-1 hover:underline"
@@ -2357,7 +2392,7 @@ function AppContent() {
                     return (
                       <div key={bill.id} className={cn(
                         "p-4 rounded-2xl border transition-all",
-                        days < 0 ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100"
+                        days < 0 ? "bg-brand-danger/5 border-brand-danger/10" : "bg-slate-50 border-slate-100"
                       )}>
                         <div className="flex justify-between items-start mb-2">
                           <p className="font-bold text-slate-900 text-sm">{bill.name}</p>
@@ -2372,7 +2407,7 @@ function AppContent() {
                           </div>
                           <span className={cn(
                             "text-[10px] font-black uppercase tracking-tighter",
-                            days < 0 ? "text-red-500" : "text-amber-600"
+                            days < 0 ? "text-brand-danger" : "text-amber-600"
                           )}>
                             {days < 0 ? `Vencido há ${Math.abs(days)}d` : days === 0 ? "Vence hoje" : `Em ${days} dias`}
                           </span>
@@ -2382,8 +2417,8 @@ function AppContent() {
                   })}
                 {bills.filter(b => !b.isPaid).length === 0 && (
                   <div className="text-center py-8">
-                    <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                    <div className="w-12 h-12 bg-brand-success/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <CheckCircle2 className="w-6 h-6 text-brand-success" />
                     </div>
                     <p className="text-xs font-bold text-slate-400 uppercase">Tudo pago!</p>
                   </div>
@@ -2442,10 +2477,10 @@ function AppContent() {
       )}>
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
-              <Car className="text-white w-5 h-5" />
+            <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center">
+              <Car className="text-brand-on-primary w-5 h-5" />
             </div>
-            <h1 className="text-lg font-black tracking-tighter italic">MINHAS<span className="text-slate-400">FINANÇAS</span></h1>
+            <h1 className="text-lg font-black tracking-tighter italic">MOB<span className="text-slate-400">CASH</span></h1>
           </div>
           <button onClick={() => setIsMenuOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-slate-900">
             <X className="w-5 h-5" />
@@ -2472,24 +2507,43 @@ function AppContent() {
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
                 activeTab === item.id 
-                  ? "bg-slate-900 text-white font-bold shadow-lg shadow-slate-900/20" 
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-brand-primary text-brand-on-primary font-bold shadow-lg shadow-brand-primary/20" 
+                  : "text-slate-500 hover:bg-slate-50 hover:text-brand-primary"
               )}
             >
-              <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-white" : "text-slate-400")} />
+              <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-brand-on-primary" : "text-brand-nav/70")} />
               <span className="font-medium">{item.label}</span>
-              {activeTab === item.id && <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
+              {activeTab === item.id && <div className="ml-auto w-1.5 h-1.5 bg-brand-on-primary rounded-full animate-pulse" />}
             </button>
           ))}
         </nav>
 
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/30">
+          <button 
+            onClick={() => setTheme(theme === 'classic' ? 'professional' : 'classic')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-brand-primary/10 hover:text-brand-primary transition-all group"
+          >
+            <Palette className="w-5 h-5 text-brand-nav" />
+            <div className="text-left">
+              <p className="text-sm font-bold leading-tight">Mudar Tema</p>
+              <p className="text-[10px] text-slate-400 uppercase font-bold">{theme === 'classic' ? 'Clássico' : 'Profissional'}</p>
+            </div>
+            <div className="ml-auto w-8 h-4 bg-slate-200 rounded-full relative transition-colors group-hover:bg-brand-primary/30">
+              <div className={cn(
+                "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all duration-300",
+                theme === 'classic' ? "left-0.5" : "left-4.5 bg-brand-primary"
+              )} />
+            </div>
+          </button>
+        </div>
+
         <div className="p-6 border-t border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-900 border-2 border-slate-700 flex items-center justify-center font-bold text-white shadow-lg overflow-hidden shrink-0">
+            <div className="w-10 h-10 rounded-full bg-brand-primary border-2 border-white/20 flex items-center justify-center font-bold text-brand-on-primary shadow-lg overflow-hidden shrink-0">
               {user?.photoURL ? (
                 <img src={user.photoURL} alt="User" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
               ) : (
-                <Car className="w-5 h-5" />
+                <Car className="w-5 h-5 text-brand-on-primary" />
               )}
             </div>
             <div className="min-w-0">
@@ -2637,6 +2691,7 @@ function AppContent() {
                 earnings={earningsEntries} 
                 expenses={dailyExpenses} 
                 bills={bills} 
+                theme={theme}
               />
             )}
             {activeTab === 'history' && (
@@ -2654,7 +2709,7 @@ function AppContent() {
       </div>
 
       {/* Bottom Navigation (Mobile Dock) */}
-      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-sm h-16 bg-slate-900/95 backdrop-blur-lg border border-white/10 rounded-2xl shadow-2xl z-50 px-4 flex items-center justify-between">
+      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-sm h-16 bg-brand-primary/95 backdrop-blur-lg border border-white/10 rounded-2xl shadow-2xl z-50 px-4 flex items-center justify-between text-brand-on-primary">
         {( [
           { id: 'dashboard', icon: LayoutDashboard },
           { id: 'earnings', icon: Car },
@@ -2668,13 +2723,13 @@ function AppContent() {
             className={cn(
               "relative p-3 rounded-xl transition-all duration-300",
               activeTab === item.id 
-                ? "text-white scale-110 -translate-y-1" 
-                : "text-slate-500 hover:text-white"
+                ? "text-brand-on-primary scale-110 -translate-y-1" 
+                : "opacity-50 hover:opacity-100"
             )}
           >
             <item.icon className="w-6 h-6" />
             {activeTab === item.id && (
-              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white]" />
+              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-brand-on-primary rounded-full shadow-[0_0_8px_white]" />
             )}
           </button>
         ))}

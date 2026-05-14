@@ -1,5 +1,42 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-brand-primary: var(--primary);
+  --color-brand-secondary: var(--secondary);
+  --color-brand-success: var(--success);
+  --color-brand-danger: var(--danger);
+  --color-brand-nav: var(--nav-icon);
+  --color-brand-on-primary: var(--on-primary);
+  --color-brand-on-danger: var(--on-danger);
+  --shadow-card: var(--card-shadow);
+}
+
+:root {
+  /* Classic Theme (Default) */
+  --primary: #0f172a; /* slate-900 */
+  --secondary: #64748b; /* slate-500 */
+  --success: #10b981; /* emerald-500 */
+  --danger: #ef4444; /* red-500 */
+  --nav-icon: #0f172a; /* slate-900 */
+  --on-primary: #ffffff;
+  --on-danger: #ffffff;
+  --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+[data-theme='professional'] {
+  --primary: #10b981; /* emerald-500 */
+  --secondary: #3b82f6; /* blue-500 */
+  --success: #10b981; /* emerald-500 */
+  --danger: #ff6b6b; /* coral red */
+  --nav-icon: #000000; /* black icons as requested */
+  --on-primary: #000000; /* black text on green */
+  --on-danger: #000000; /* black text on coral */
+  --card-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
 @layer base {
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
