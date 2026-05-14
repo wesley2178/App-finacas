@@ -19,6 +19,8 @@ import {
   AlertCircle,
   TrendingUp,
   TrendingDown,
+  Target,
+  Trophy,
   Calendar as CalendarIcon,
   ChevronUp,
   ChevronDown,
@@ -32,7 +34,7 @@ import {
   LogOut,
   Palette
 } from 'lucide-react';
-import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay } from 'date-fns';
+import { format, addMonths, isAfter, isBefore, startOfMonth, endOfMonth, parseISO, differenceInDays, addDays, isSameDay, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   BarChart, 
@@ -160,8 +162,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
 // --- Components ---
 
-const Card = ({ children, className }: { children: React.ReactNode; className?: string; [key: string]: any }) => (
-  <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden transition-all duration-300", className)}>
+const Card = ({ children, className, ...props }: { children: React.ReactNode; className?: string; [key: string]: any }) => (
+  <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden transition-all duration-300", className)} {...props}>
     {children}
   </div>
 );
@@ -481,6 +483,111 @@ const EarningsView = ({
             ))
           )}
         </div>
+      </Card>
+    </div>
+  );
+};
+
+const GoalModal = ({ isOpen, onClose, onSave, currentGoal, currentType }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (goal: number, type: 'weekly' | 'monthly') => void;
+  currentGoal: number;
+  currentType: 'weekly' | 'monthly';
+}) => {
+  const [goal, setGoal] = useState(currentGoal.toString());
+  const [type, setType] = useState<'weekly' | 'monthly'>(currentType);
+
+  useEffect(() => {
+    if (isOpen) {
+      setGoal(currentGoal > 0 ? currentGoal.toString() : '');
+      setType(currentType);
+    }
+  }, [isOpen, currentGoal, currentType]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[210] flex items-center justify-center p-4">
+      <Card className="max-w-md w-full p-8 animate-in fade-in zoom-in-95 duration-300 border-none shadow-2xl">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Target className="w-8 h-8" />
+          </div>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Definir Minha Meta</h3>
+          <p className="text-sm text-slate-500 font-medium">Quanto você deseja faturar no período?</p>
+        </div>
+
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          onSave(Number(goal), type);
+          onClose();
+        }} className="space-y-6">
+          <div className="flex p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setType('weekly')}
+              className={cn(
+                "flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-lg transition-all",
+                type === 'weekly' ? "bg-white text-brand-primary shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Semanal
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('monthly')}
+              className={cn(
+                "flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-lg transition-all",
+                type === 'monthly' ? "bg-white text-brand-primary shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Mensal
+            </button>
+          </div>
+
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-300">R$</div>
+            <input 
+              required 
+              autoFocus
+              type="number" 
+              value={goal} 
+              onChange={e => setGoal(e.target.value)}
+              className="w-full h-20 bg-slate-50 border-2 border-slate-100 rounded-2xl pl-16 pr-6 text-3xl font-black text-slate-900 focus:border-brand-primary focus:ring-0 outline-none transition-all"
+              placeholder="0,00"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {[500, 1000, 1500, 2000, 3000, 5000].map(val => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setGoal(val.toString())}
+                className="py-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-xs font-bold text-slate-600 transition-colors border border-slate-100"
+              >
+                R$ {val}
+              </button>
+            ))}
+          </div>
+
+          <div className="pt-4 flex gap-3">
+            <button 
+               type="button" 
+               onClick={onClose} 
+               className="flex-1 h-14 bg-slate-100 text-slate-600 hover:bg-slate-200 border-none rounded-xl font-bold text-sm"
+            >
+              Cancelar
+            </button>
+            <button 
+               type="submit" 
+               className="flex-[2] h-14 bg-brand-primary text-brand-on-primary rounded-xl font-bold text-sm shadow-lg shadow-brand-primary/20"
+            >
+              Salvar Meta
+            </button>
+          </div>
+        </form>
       </Card>
     </div>
   );
@@ -1790,12 +1897,18 @@ function AppContent() {
   const [userName, setUserName] = useState<string>('');
   const [carName, setCarName] = useState<string>('');
   const [carPlate, setCarPlate] = useState<string>('');
+  const [financialGoal, setFinancialGoal] = useState<number>(0);
+  const [goalType, setGoalType] = useState<'weekly' | 'monthly'>('monthly');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
 
   // Firestore Subscriptions
   useEffect(() => {
-    if (!user || !isAuthorized) return;
+    if (!user || !isAuthorized) {
+      setIsSettingsLoading(false);
+      return;
+    }
 
     const email = user.email;
     const uid = user.uid;
@@ -1826,6 +1939,8 @@ function AppContent() {
           if (settings.userName) setUserName(settings.userName);
           if (settings.carName) setCarName(settings.carName);
           if (settings.carPlate) setCarPlate(settings.carPlate);
+          if (settings.financialGoal !== undefined) setFinancialGoal(settings.financialGoal);
+          if (settings.goalType) setGoalType(settings.goalType);
           
           if (!settings.userName || !settings.carName) {
             setShowOnboarding(true);
@@ -2146,6 +2261,41 @@ function AppContent() {
     }
   }, [bills, deposits]);
 
+  const goalProgress = useMemo(() => {
+    if (financialGoal <= 0) return { progress: 0, current: 0, target: 0, reached: false };
+    
+    const now = new Date();
+    let currentEarnings = 0;
+
+    if (goalType === 'monthly') {
+      currentEarnings = earningsEntries
+        .filter(e => {
+          const d = safeParseISO(e.date);
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        })
+        .reduce((acc, curr) => acc + curr.totalEarnings, 0);
+    } else {
+      // Weekly goal starting from Sunday (or Monday depending on locale, usually JS Sunday 0)
+      const start = startOfWeek(now, { weekStartsOn: 0 });
+      const end = endOfWeek(now, { weekStartsOn: 0 });
+      
+      currentEarnings = earningsEntries
+        .filter(e => {
+          const d = safeParseISO(e.date);
+          return isWithinInterval(d, { start, end });
+        })
+        .reduce((acc, curr) => acc + curr.totalEarnings, 0);
+    }
+
+    const progress = Math.min(100, (currentEarnings / financialGoal) * 100);
+    return {
+      progress,
+      current: currentEarnings,
+      target: financialGoal,
+      reached: currentEarnings >= financialGoal
+    };
+  }, [earningsEntries, financialGoal, goalType]);
+
   // Auth Guard
   if (loading || isSettingsLoading) {
     return (
@@ -2180,29 +2330,66 @@ function AppContent() {
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Main Financial Pulse */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 text-brand-on-primary">
-          <Card className="lg:col-span-2 p-6 md:p-8 bg-brand-primary border-none shadow-xl shadow-brand-primary/20 relative overflow-hidden group">
+          <Card className="lg:col-span-2 p-6 md:p-8 bg-brand-primary border-none shadow-xl shadow-brand-primary/20 relative overflow-hidden group cursor-pointer" onClick={() => setIsGoalModalOpen(true)}>
             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
               <TrendingUp className="w-24 h-24 text-brand-on-primary" />
             </div>
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-2 h-2 rounded-full bg-brand-on-primary animate-pulse" />
-                <p className="text-[10px] font-black opacity-50 uppercase tracking-widest">Saldo Líquido Mensal</p>
+            <div className="relative z-10 flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-brand-on-primary animate-pulse" />
+                  <p className="text-[10px] font-black opacity-50 uppercase tracking-widest">Saldo Líquido Mensal</p>
+                </div>
+                {financialGoal > 0 && (
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-white/10 rounded-full border border-white/5">
+                    <Target className="w-3 h-3 opacity-60" />
+                    <span className="text-[9px] font-bold opacity-80 uppercase">{goalProgress.progress.toFixed(0)}% da Meta</span>
+                  </div>
+                )}
               </div>
-              <h3 className="text-4xl md:text-5xl font-black text-brand-on-primary tracking-tight mb-2">
-                R$ {formatCurrency(netEarnings)}
-              </h3>
-              <p className="text-sm opacity-40">Restante após todos os custos operacionais e gastos</p>
               
-              <div className="grid grid-cols-2 gap-4 mt-6 md:mt-8 pt-6 md:pt-8 border-t border-white/10">
-                <div>
-                  <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Ganhos Brutos</p>
-                  <p className="text-base md:text-lg font-bold text-brand-on-primary">R$ {formatCurrency(monthlyStats.totalEarnings)}</p>
+              <div className="mb-auto">
+                <h3 className="text-4xl md:text-5xl font-black text-brand-on-primary tracking-tight mb-2">
+                  R$ {formatCurrency(netEarnings)}
+                </h3>
+                <p className="text-sm opacity-40">Restante após todos os custos e gastos</p>
+              </div>
+              
+              <div className="mt-6 md:mt-8 pt-6 border-t border-white/10">
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Ganhos Brutos</p>
+                    <p className="text-base md:text-lg font-bold text-brand-on-primary">R$ {formatCurrency(monthlyStats.totalEarnings)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Custos Totais</p>
+                    <p className="text-base md:text-lg font-bold opacity-80">R$ {formatCurrency(monthlyStats.totalEarnings - netEarnings)}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold opacity-30 uppercase mb-1">Custos Totais</p>
-                  <p className="text-base md:text-lg font-bold opacity-80">R$ {formatCurrency(monthlyStats.totalEarnings - netEarnings)}</p>
-                </div>
+
+                {/* Compact Goal Progress */}
+                {financialGoal > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <p className="text-[9px] font-black opacity-40 uppercase tracking-widest">Meta {goalType === 'weekly' ? 'Semanal' : 'Mensal'}</p>
+                      <p className="text-[10px] font-bold opacity-80">R$ {formatCurrency(goalProgress.current)} / {formatCurrency(goalProgress.target)}</p>
+                    </div>
+                    <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden p-0.5 border border-white/5">
+                      <div 
+                        style={{ width: `${goalProgress.progress}%` }}
+                        className={cn(
+                          "h-full rounded-full transition-all duration-1000",
+                          goalProgress.reached ? "bg-emerald-400" : "bg-white"
+                        )}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-2 px-3 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between group/goal">
+                    <p className="text-[10px] font-bold opacity-40">Nenhuma meta definida</p>
+                    <span className="text-[9px] font-black uppercase text-brand-on-primary group-hover/goal:underline">Definir agora</span>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
@@ -2815,6 +3002,18 @@ function AppContent() {
           </button>
         ))}
       </nav>
+
+      <GoalModal 
+        isOpen={isGoalModalOpen} 
+        onClose={() => setIsGoalModalOpen(false)} 
+        onSave={async (goal, type) => {
+          setFinancialGoal(goal);
+          setGoalType(type);
+          await updateSettings({ financialGoal: goal, goalType: type });
+        }}
+        currentGoal={financialGoal}
+        currentType={goalType}
+      />
     </div>
   );
 }

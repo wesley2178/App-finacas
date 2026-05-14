@@ -1,5 +1,6 @@
 {
   "name": "Mobcash",
   "description": "Gestão financeira completa para motoristas de aplicativo, com controle de ganhos, gastos e metas de economia diária.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
