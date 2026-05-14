@@ -660,6 +660,19 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, onEdit, customCategories,
     }
   };
 
+  const sortedBills = useMemo(() => {
+    return [...bills].sort((a, b) => {
+      // First sort by paid status (unpaid first)
+      if (a.isPaid && !b.isPaid) return 1;
+      if (!a.isPaid && b.isPaid) return -1;
+      
+      // Then sort by due date
+      const dateA = safeParseISO(a.dueDate).getTime();
+      const dateB = safeParseISO(b.dueDate).getTime();
+      return dateA - dateB;
+    });
+  }, [bills]);
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card className="p-6">
@@ -749,7 +762,7 @@ const BillsView = ({ bills, onAdd, onToggle, onDelete, onEdit, customCategories,
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {bills.map(bill => {
+        {sortedBills.map(bill => {
           const isOverdue = !bill.isPaid && isBefore(safeParseISO(bill.dueDate), new Date()) && !isSameDay(safeParseISO(bill.dueDate), new Date());
           const isEditing = editingBillId === bill.id;
           
@@ -1189,6 +1202,12 @@ const ExpensesView = ({ expenses, onAdd, onDelete, customCategories, onAddCatego
             placeholder="0,00"
             value={formData.value} 
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, value: e.target.value })} 
+          />
+          <Input 
+            label="Data" 
+            type="date" 
+            value={formData.date} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, date: e.target.value })} 
           />
           <div className="flex flex-col gap-1.5">
             <div className="flex justify-between items-center">
