@@ -1977,100 +1977,54 @@ function AppContent() {
     return () => unsubscribers.forEach(unsub => unsub());
   }, [user, isAuthorized]);
 
-  // Migration for Wesley (Local Storage to Firestore)
-  useEffect(() => {
-    if (isWesley && user && initialSyncDone) {
-      const runMigration = async () => {
-        const batch = writeBatch(db);
-        let hasData = false;
-
-        const localEntries = JSON.parse(localStorage.getItem('uber_entries') || '[]');
-        const localBills = JSON.parse(localStorage.getItem('bills') || '[]');
-        const localDeposits = JSON.parse(localStorage.getItem('deposits') || '[]');
-        const localExpenses = JSON.parse(localStorage.getItem('daily_expenses') || '[]');
-        const localArchives = JSON.parse(localStorage.getItem('monthly_archives') || '[]');
-        const localFuel = localStorage.getItem('fuel_cost_per_km');
-
-        // Granular migration: only migrate if Firestore collection is empty and LocalStorage has data
-        if (earningsEntries.length === 0 && localEntries.length > 0) {
-          localEntries.forEach((e: any) => {
-            const d = doc(collection(db, 'uber_entries'), e.id || generateId());
-            batch.set(d, { ...e, id: d.id });
-          });
-          hasData = true;
-        }
-        
-        if (bills.length === 0 && localBills.length > 0) {
-          localBills.forEach((b: any) => batch.set(doc(collection(db, 'bills'), b.id || generateId()), b));
-          hasData = true;
-        }
-
-        if (dailyExpenses.length === 0 && localExpenses.length > 0) {
-          localExpenses.forEach((e: any) => batch.set(doc(collection(db, 'daily_expenses'), e.id || generateId()), e));
-          hasData = true;
-        }
-
-        if (deposits.length === 0 && localDeposits.length > 0) {
-          localDeposits.forEach((d: any) => batch.set(doc(collection(db, 'deposits'), d.id || generateId()), d));
-          hasData = true;
-        }
-
-        if (archives.length === 0 && localArchives.length > 0) {
-          localArchives.forEach((a: any) => batch.set(doc(collection(db, 'monthly_archives'), a.id || generateId()), a));
-          hasData = true;
-        }
-
-        // Migrate settings if context is still at default
-        if (fuelCostPerKm === 0.20 && localFuel) {
-          batch.set(doc(db, getSettingsPath(user.email, user.uid)), { fuelCostPerKm: Number(localFuel) }, { merge: true });
-          hasData = true;
-        }
-
-        if (hasData) {
-          await batch.commit();
-          console.log("Migration to Firestore triggered for missing Wesley data");
-        }
-      };
-      runMigration();
-    }
-  }, [isWesley, user, initialSyncDone, earningsEntries.length, bills.length, dailyExpenses.length, deposits.length, archives.length]);
-
   const handleMonthlyReset = async (monthToArchive: string) => {
     if (!user) return;
-    // Current month data archiving
+    
+    // Filter data that belongs exactly to the month being archived
+    const entriesToArchive = earningsEntries.filter(e => e.date.startsWith(monthToArchive));
+    const expensesToArchive = dailyExpenses.filter(e => e.date.startsWith(monthToArchive));
+    const billsToArchive = bills.filter(b => b.dueDate.startsWith(monthToArchive));
+
+    if (entriesToArchive.length === 0 && expensesToArchive.length === 0 && billsToArchive.length === 0) {
+      localStorage.setItem('last_monthly_reset', format(new Date(), 'yyyy-MM'));
+      return;
+    }
+
     const archiveId = generateId();
     const monthArchive: MonthArchive = {
       id: archiveId,
       month: monthToArchive,
-      earnings: [...earningsEntries],
-      expenses: [...dailyExpenses],
-      bills: bills.filter(b => !b.isRecurring),
-      totalEarnings: earningsEntries.reduce((acc, curr) => acc + curr.totalEarnings, 0),
-      totalExpenses: dailyExpenses.reduce((acc, curr) => acc + curr.value, 0),
-      totalBills: bills.filter(b => !b.isRecurring).reduce((acc, curr) => acc + curr.value, 0),
+      earnings: entriesToArchive,
+      expenses: expensesToArchive,
+      bills: billsToArchive,
+      totalEarnings: entriesToArchive.reduce((acc, curr) => acc + curr.totalEarnings, 0),
+      totalExpenses: expensesToArchive.reduce((acc, curr) => acc + curr.value, 0),
+      totalBills: billsToArchive.reduce((acc, curr) => acc + curr.value, 0),
     };
 
     const batch = writeBatch(db);
     const email = user.email;
     const uid = user.uid;
 
-    if (monthArchive.earnings.length > 0 || monthArchive.expenses.length > 0 || monthArchive.bills.length > 0) {
-      batch.set(doc(collection(db, getDataPath(email, uid, 'monthly_archives')), archiveId), monthArchive);
-    }
+    batch.set(doc(collection(db, getDataPath(email, uid, 'monthly_archives')), archiveId), monthArchive);
 
-    // Reset data
-    for (const e of earningsEntries) batch.delete(doc(db, getDataPath(email, uid, 'uber_entries'), e.id));
-    for (const ex of dailyExpenses) batch.delete(doc(db, getDataPath(email, uid, 'daily_expenses'), ex.id));
+    // Reset data: Delete only archived items
+    entriesToArchive.forEach(e => batch.delete(doc(db, getDataPath(email, uid, 'uber_entries'), e.id)));
+    expensesToArchive.forEach(ex => batch.delete(doc(db, getDataPath(email, uid, 'daily_expenses'), ex.id)));
     
-    // Update recurring bills
-    bills.filter(b => b.isRecurring).forEach(bill => {
+    // Handle Recurring Bills
+    const recurringBills = bills.filter(b => b.isRecurring);
+    recurringBills.forEach(bill => {
       const currentDueDate = safeParseISO(bill.dueDate);
       const now = new Date();
-      const newDueDate = new Date(now.getFullYear(), now.getMonth(), currentDueDate.getDate());
-      batch.update(doc(db, getDataPath(email, uid, 'bills'), bill.id), {
-        dueDate: format(newDueDate, 'yyyy-MM-dd'),
-        isPaid: false
-      });
+      // If the recurring bill was in the archived month, we create/update for the current month
+      if (bill.dueDate.startsWith(monthToArchive)) {
+        const newDueDate = new Date(now.getFullYear(), now.getMonth(), currentDueDate.getDate());
+        batch.update(doc(db, getDataPath(email, uid, 'bills'), bill.id), {
+          dueDate: format(newDueDate, 'yyyy-MM-dd'),
+          isPaid: false
+        });
+      }
     });
 
     await batch.commit();
@@ -2079,7 +2033,7 @@ function AppContent() {
 
   // Monthly Reset logic (partial localStorage depends on user)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !initialSyncDone) return;
     const now = new Date();
     const currentMonthKey = format(now, 'yyyy-MM');
     const lastResetKey = localStorage.getItem('last_monthly_reset');
@@ -2089,7 +2043,7 @@ function AppContent() {
     } else if (!lastResetKey) {
       localStorage.setItem('last_monthly_reset', currentMonthKey);
     }
-  }, [user, earningsEntries, dailyExpenses, bills]); 
+  }, [user, initialSyncDone, earningsEntries, dailyExpenses, bills]); 
 
   // --- Handlers ---
 
@@ -2149,10 +2103,17 @@ function AppContent() {
     if (!user) return;
     const email = user.email;
     const uid = user.uid;
-    await deleteDoc(doc(db, getDataPath(email, uid, 'bills'), id));
+    const batch = writeBatch(db);
+    
+    batch.delete(doc(db, getDataPath(email, uid, 'bills'), id));
+    
     // Clean deposits
     const depsToDelete = deposits.filter(d => d.billId === id);
-    for (const d of depsToDelete) await deleteDoc(doc(db, getDataPath(email, uid, 'deposits'), d.id));
+    depsToDelete.forEach(d => {
+      batch.delete(doc(db, getDataPath(email, uid, 'deposits'), d.id));
+    });
+    
+    await batch.commit();
   };
 
   const updateBill = async (id: string, updates: Partial<Bill>) => {
@@ -2975,9 +2936,24 @@ function AppContent() {
 
             {activeTab === 'report' && (
               <ReportView 
-                earnings={earningsEntries} 
-                expenses={dailyExpenses} 
-                bills={bills} 
+                earnings={earningsEntries.filter(e => {
+                  if (showAllData) return true;
+                  const d = safeParseISO(e.date);
+                  const now = new Date();
+                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                })} 
+                expenses={dailyExpenses.filter(e => {
+                  if (showAllData) return true;
+                  const d = safeParseISO(e.date);
+                  const now = new Date();
+                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                })} 
+                bills={bills.filter(b => {
+                  if (showAllData) return true;
+                  const d = safeParseISO(b.dueDate);
+                  const now = new Date();
+                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                })} 
                 theme={theme}
               />
             )}
