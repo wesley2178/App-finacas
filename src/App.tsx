@@ -173,13 +173,15 @@ const Button = ({
   onClick, 
   variant = 'primary', 
   className,
-  type = 'button'
+  type = 'button',
+  disabled = false
 }: { 
   children: React.ReactNode; 
   onClick?: () => void; 
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   className?: string;
   type?: 'button' | 'submit';
+  disabled?: boolean;
 }) => {
   const variants = {
     primary: "bg-brand-primary text-brand-on-primary hover:opacity-90",
@@ -192,6 +194,7 @@ const Button = ({
     <button 
       type={type}
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "px-4 py-2 rounded-xl font-medium transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50",
         variants[variant],
@@ -588,6 +591,69 @@ const GoalModal = ({ isOpen, onClose, onSave, currentGoal, currentType }: {
             </button>
           </div>
         </form>
+      </Card>
+    </div>
+  );
+};
+
+const WipeConfirmModal = ({ isOpen, onClose, onConfirm }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) => {
+  const [typedConfirm, setTypedConfirm] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setTypedConfirm('');
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[210] flex items-center justify-center p-4">
+      <Card className="max-w-md w-full p-8 animate-in fade-in zoom-in-95 duration-300 border-none shadow-2xl">
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 bg-red-100 text-brand-danger rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Trash2 className="w-8 h-8 font-bold" />
+          </div>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Excluir Todos os Dados</h3>
+          <p className="text-sm text-slate-500 font-medium mt-1">
+            Esta ação é irreversível e excluirá permanentemente todos os seus ganhos, despesas diárias, faturas, caixinhas de reserva e todo o seu histórico.
+          </p>
+        </div>
+
+        <div className="bg-red-50 text-brand-danger p-4 rounded-xl text-xs font-semibold leading-relaxed border border-red-100 mb-6">
+          Atenção: Ao confirmar, o aplicativo será limpo e reiniciado do zero.
+        </div>
+
+        <div className="space-y-4">
+          <Input 
+            label="Digite APAGAR para confirmar" 
+            placeholder="APAGAR"
+            value={typedConfirm}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTypedConfirm(e.target.value)}
+          />
+
+          <div className="flex gap-4 pt-2">
+            <Button 
+              variant="secondary" 
+              onClick={onClose} 
+              className="flex-1 h-12"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="danger" 
+              onClick={onConfirm}
+              disabled={typedConfirm !== 'APAGAR'}
+              className="flex-1 h-12 bg-red-600 hover:bg-red-755 text-white disabled:opacity-40"
+            >
+              Excluir Tudo
+            </Button>
+          </div>
+        </div>
       </Card>
     </div>
   );
@@ -1921,6 +1987,7 @@ function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
 
   // Firestore Subscriptions
   useEffect(() => {
@@ -2029,6 +2096,49 @@ function AppContent() {
 
     await batch.commit();
     localStorage.setItem('last_monthly_reset', format(new Date(), 'yyyy-MM'));
+  };
+
+  const handleClearAllData = async () => {
+    if (!user) return;
+    try {
+      const email = user.email;
+      const uid = user.uid;
+      const batch = writeBatch(db);
+
+      earningsEntries.forEach(e => {
+        batch.delete(doc(db, getDataPath(email, uid, 'uber_entries'), e.id));
+      });
+
+      dailyExpenses.forEach(ex => {
+        batch.delete(doc(db, getDataPath(email, uid, 'daily_expenses'), ex.id));
+      });
+
+      bills.forEach(b => {
+        batch.delete(doc(db, getDataPath(email, uid, 'bills'), b.id));
+      });
+
+      deposits.forEach(d => {
+        batch.delete(doc(db, getDataPath(email, uid, 'deposits'), d.id));
+      });
+
+      archives.forEach(a => {
+        batch.delete(doc(db, getDataPath(email, uid, 'monthly_archives'), a.id));
+      });
+
+      // Reset configurations in settings
+      batch.set(doc(db, getSettingsPath(email, uid)), {
+        financialGoal: 0,
+        goalType: 'monthly',
+        fuelCostPerKm: 0.20
+      }, { merge: true });
+
+      await batch.commit();
+      
+      localStorage.removeItem('last_monthly_reset');
+      setIsWipeModalOpen(false);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, null, auth);
+    }
   };
 
   // Monthly Reset logic (partial localStorage depends on user)
@@ -2164,6 +2274,7 @@ function AppContent() {
       const now = new Date();
       
       const monthEarnings = earningsEntries.filter(e => {
+        if (showAllData) return true;
         if (typeof e.date !== 'string') return false;
         const d = safeParseISO(e.date);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -2174,6 +2285,7 @@ function AppContent() {
       const netEarnings = totalEarnings - totalCosts;
 
       const monthBills = bills.filter(b => {
+        if (showAllData) return true;
         if (typeof b.dueDate !== 'string') return false;
         const d = safeParseISO(b.dueDate);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -2182,11 +2294,14 @@ function AppContent() {
       const totalBills = monthBills.reduce((acc, curr) => acc + curr.value, 0);
       const paidBills = monthBills.filter(b => b.isPaid).reduce((acc, curr) => acc + curr.value, 0);
 
-      const totalDailyExpenses = dailyExpenses.filter(e => {
+      const monthDailyExpenses = dailyExpenses.filter(e => {
+        if (showAllData) return true;
         if (typeof e.date !== 'string') return false;
         const d = safeParseISO(e.date);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }).reduce((acc, curr) => acc + curr.value, 0);
+      });
+
+      const totalDailyExpenses = monthDailyExpenses.reduce((acc, curr) => acc + curr.value, 0);
 
       return {
         totalEarnings,
@@ -2195,7 +2310,10 @@ function AppContent() {
         totalBills,
         paidBills,
         pendingBills: totalBills - paidBills,
-        totalDailyExpenses
+        totalDailyExpenses,
+        monthEarnings,
+        monthBills,
+        monthDailyExpenses
       };
     } catch (e) {
       console.error("Error calculating monthly stats", e);
@@ -2206,10 +2324,13 @@ function AppContent() {
         totalBills: 0,
         paidBills: 0,
         pendingBills: 0,
-        totalDailyExpenses: 0
+        totalDailyExpenses: 0,
+        monthEarnings: [],
+        monthBills: [],
+        monthDailyExpenses: []
       };
     }
-  }, [earningsEntries, bills, dailyExpenses]);
+  }, [earningsEntries, bills, dailyExpenses, showAllData]);
 
   const savingsGoals = useMemo(() => {
     try {
@@ -2301,10 +2422,21 @@ function AppContent() {
   // --- Renderers ---
 
   const renderDashboard = () => {
-    const totalUber = earningsEntries.reduce((acc, curr) => acc + curr.uberEarnings, 0);
-    const total99 = earningsEntries.reduce((acc, curr) => acc + curr.pop99Earnings, 0);
-    const totalOther = earningsEntries.reduce((acc, curr) => acc + (curr.otherEarnings || 0), 0);
-    const netEarnings = monthlyStats.netEarnings;
+    const { 
+      totalEarnings, 
+      totalCosts, 
+      netEarnings, 
+      totalBills, 
+      paidBills, 
+      totalDailyExpenses,
+      monthEarnings,
+      monthBills,
+      monthDailyExpenses
+    } = monthlyStats;
+
+    const totalUber = monthEarnings.reduce((acc, curr) => acc + curr.uberEarnings, 0);
+    const total99 = monthEarnings.reduce((acc, curr) => acc + curr.pop99Earnings, 0);
+    const totalOther = monthEarnings.reduce((acc, curr) => acc + (curr.otherEarnings || 0), 0);
 
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2609,7 +2741,7 @@ function AppContent() {
                 </h4>
                 <div className="flex flex-col justify-center h-24">
                   <p className="text-3xl font-black text-slate-900">
-                    R$ {formatCurrency(dailyExpenses.length > 0 ? dailyExpenses.reduce((acc, curr) => acc + curr.value, 0) / 30 : 0)}
+                    R$ {formatCurrency(monthDailyExpenses.length > 0 ? totalDailyExpenses / 30 : 0)}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Estimativa baseada em 30 dias</p>
                 </div>
@@ -2626,12 +2758,12 @@ function AppContent() {
                   Vencimentos e Alertas
                 </h4>
                 <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-md text-[9px] font-black uppercase">
-                  {bills.filter(b => !b.isPaid).length} Faturas
+                  {monthBills.filter(b => !b.isPaid).length} Faturas
                 </span>
               </div>
               
               <div className="space-y-4">
-                {bills
+                {monthBills
                   .filter(b => !b.isPaid)
                   .sort((a, b) => safeParseISO(a.dueDate).getTime() - safeParseISO(b.dueDate).getTime())
                   .slice(0, 5)
@@ -2663,7 +2795,7 @@ function AppContent() {
                       </div>
                     );
                   })}
-                {bills.filter(b => !b.isPaid).length === 0 && (
+                {monthBills.filter(b => !b.isPaid).length === 0 && (
                   <div className="text-center py-8">
                     <div className="w-12 h-12 bg-brand-success/10 rounded-full flex items-center justify-center mx-auto mb-3">
                       <CheckCircle2 className="w-6 h-6 text-brand-success" />
@@ -2692,13 +2824,13 @@ function AppContent() {
                   <span className="text-sm font-bold text-slate-900">{carName || 'Carro Padrão'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-500 font-medium">KM Rodados (Total)</span>
-                  <span className="text-sm font-bold text-slate-900">{earningsEntries.reduce((acc, curr) => acc + curr.kmDriven, 0)} km</span>
+                  <span className="text-xs text-slate-500 font-medium">{showAllData ? "KM Rodados (Total)" : "KM Rodados (Período)"}</span>
+                  <span className="text-sm font-bold text-slate-900">{monthEarnings.reduce((acc, curr) => acc + curr.kmDriven, 0)} km</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500 font-medium">Eficiência Média</span>
                   <span className="text-sm font-bold text-slate-900">
-                    R$ {(monthlyStats.totalEarnings / (earningsEntries.reduce((acc, curr) => acc + curr.kmDriven, 0) || 1)).toFixed(2)} / km
+                    R$ {(totalEarnings / (monthEarnings.reduce((acc, curr) => acc + curr.kmDriven, 0) || 1)).toFixed(2)} / km
                   </span>
                 </div>
               </div>
@@ -2766,7 +2898,7 @@ function AppContent() {
           ))}
         </nav>
 
-        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/30">
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/30 space-y-2">
           <button 
             onClick={() => setTheme(theme === 'classic' ? 'professional' : 'classic')}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-brand-primary/10 hover:text-brand-primary transition-all group"
@@ -2781,6 +2913,17 @@ function AppContent() {
                 "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all duration-300",
                 theme === 'classic' ? "left-0.5" : "left-4.5 bg-brand-primary"
               )} />
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setIsWipeModalOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all group"
+          >
+            <Trash2 className="w-5 h-5 text-red-500/70 group-hover:text-red-600 transition-colors" />
+            <div className="text-left">
+              <p className="text-sm font-bold leading-tight">Zerar Aplicativo</p>
+              <p className="text-[10px] text-slate-400 uppercase font-bold">Limpar tudo</p>
             </div>
           </button>
         </div>
@@ -3008,6 +3151,12 @@ function AppContent() {
         }}
         currentGoal={financialGoal}
         currentType={goalType}
+      />
+
+      <WipeConfirmModal 
+        isOpen={isWipeModalOpen}
+        onClose={() => setIsWipeModalOpen(false)}
+        onConfirm={handleClearAllData}
       />
     </div>
   );
